@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
+import { Navbar } from '@/components/shared/Navbar'
 
 const inter = Inter({ 
   subsets: ['latin', 'latin-ext'],
@@ -38,7 +39,8 @@ export default function RootLayout({
   return (
     <html lang="pl" className="dark">
       <body className={`${inter.className} antialiased`}>
-        {children}
+        <Navbar />
+        <div className="pt-16">{children}</div>
         <Toaster 
           position="bottom-right" 
           toastOptions={{
