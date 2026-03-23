@@ -1,8 +1,10 @@
 "use client"
 
+import { FileText } from "lucide-react"
 import { useState } from "react"
 import toast from "react-hot-toast"
 
+import { exportToPDF } from "@/components/generator/ExportPDF"
 import { copyToClipboard } from "@/lib/utils"
 import type { GenerateResponse, QualityTip } from "@/lib/types"
 
@@ -72,34 +74,41 @@ async function handleCopy(text: string) {
   else toast.error("Nie udało się skopiować")
 }
 
-type DescriptionResultProps = {
+export interface DescriptionResultProps {
   result: GenerateResponse
+  productName?: string
   /** Rodzic ustawia np. setResult(null) — wymagane do pełnego „Generuj ponownie”. */
   onRegenerate?: () => void
 }
 
-export function DescriptionResult({ result, onRegenerate }: DescriptionResultProps) {
+export function DescriptionResult({
+  result,
+  productName,
+  onRegenerate,
+}: DescriptionResultProps) {
   const [viewMode, setViewMode] = useState<"preview" | "html">("preview")
+  const [copiedSection, setCopiedSection] = useState<string | null>(null)
+  const [clickedTag, setClickedTag] = useState<string | null>(null)
 
   const score = result.qualityScore ?? 0
-  const scoreWidth = `${Math.min(100, Math.max(0, score))}%`
-  const scoreColorClass =
-    score >= 90
-      ? "text-emerald-400"
-      : score >= 70
-        ? "text-yellow-400"
-        : "text-red-400"
-  const barColorClass =
-    score >= 90 ? "bg-emerald-500" : score >= 70 ? "bg-yellow-500" : "bg-red-500"
+  const ringCirc = 2 * Math.PI * 40
 
-  const scoreHint =
-    score >= 90
-      ? "Świetny opis! Gotowy do publikacji. 🎉"
-      : score >= 75
-        ? "Dobry opis. Drobne poprawki podniosą go do perfekcji."
-        : score >= 60
-          ? "Przyzwoity opis. Sprawdź wskazówki poniżej."
-          : "Opis wymaga poprawek. Sprawdź wskazówki."
+  async function handleSectionCopy(text: string, sectionName: string) {
+    const ok = await copyToClipboard(text)
+    if (!ok) {
+      toast.error("Nie udało się skopiować")
+      return
+    }
+    setCopiedSection(sectionName)
+    toast.success("Skopiowano!")
+    setTimeout(() => setCopiedSection(null), 2000)
+  }
+
+  function copyButtonClass(sectionName: string) {
+    return copiedSection === sectionName
+      ? "rounded-lg bg-emerald-500/20 px-2 py-1 text-xs text-emerald-400 ring-2 ring-emerald-500/30 transition-all duration-300"
+      : "rounded-lg bg-secondary px-2 py-1 text-xs text-muted-foreground transition-all duration-300 hover:bg-emerald-500/20 hover:text-emerald-400"
+  }
 
   const seoTitle = result.seoTitle ?? ""
   const shortDescription = result.shortDescription ?? ""
@@ -116,27 +125,66 @@ export function DescriptionResult({ result, onRegenerate }: DescriptionResultPro
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-emerald-500/20 bg-card/50 p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="text-sm font-medium text-foreground">
-            📊 Quality Score
-          </span>
-          <span className={`text-2xl font-bold ${scoreColorClass}`}>
-            {score}/100
-          </span>
+      <div className="gradient-border p-5">
+        <div className="flex items-center gap-6">
+          <div className="relative h-24 w-24 shrink-0">
+            <svg className="h-24 w-24 -rotate-90" viewBox="0 0 100 100">
+              <circle
+                cx="50"
+                cy="50"
+                r="40"
+                fill="none"
+                stroke="hsl(217.2 32.6% 17.5%)"
+                strokeWidth="8"
+              />
+              <circle
+                cx="50"
+                cy="50"
+                r="40"
+                fill="none"
+                stroke={
+                  score >= 80
+                    ? "#10B981"
+                    : score >= 60
+                      ? "#EAB308"
+                      : "#EF4444"
+                }
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeDasharray={`${ringCirc}`}
+                strokeDashoffset={`${ringCirc * (1 - Math.min(100, Math.max(0, score)) / 100)}`}
+                className="transition-all duration-1000 ease-out"
+                style={{ animation: "score-fill 1s ease-out forwards" }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-2xl font-bold text-foreground">{score}</span>
+              <span className="text-[10px] text-muted-foreground">/ 100</span>
+            </div>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-base font-semibold text-foreground">
+              Quality Score
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {score >= 90
+                ? "🏆 Doskonały! Gotowy do publikacji."
+                : score >= 75
+                  ? "✅ Bardzo dobry. Drobne szlify i perfekcja!"
+                  : score >= 60
+                    ? "⚡ Przyzwoity. Sprawdź wskazówki."
+                    : "⚠️ Wymaga poprawek. Sprawdź wskazówki poniżej."}
+            </p>
+          </div>
         </div>
-        <div className="h-3 w-full rounded-full bg-secondary">
-          <div
-            className={`h-full rounded-full transition-all duration-1000 ${barColorClass}`}
-            style={{ width: scoreWidth }}
-          />
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">{scoreHint}</p>
 
         {tips.length > 0 ? (
           <div className="mt-4 space-y-2">
             {tips.map((tip, i) => (
-              <div key={i} className="flex items-start gap-2 text-xs">
+              <div
+                key={i}
+                className="flex items-start gap-3 rounded-xl bg-secondary/20 p-3 text-xs"
+              >
                 <span
                   className={
                     tip.type === "success"
@@ -152,8 +200,10 @@ export function DescriptionResult({ result, onRegenerate }: DescriptionResultPro
                       ? "⚠️"
                       : "❌"}
                 </span>
-                <span className="text-muted-foreground">{tip.text}</span>
-                <span className="text-muted-foreground/50">
+                <span className="min-w-0 flex-1 text-muted-foreground">
+                  {tip.text}
+                </span>
+                <span className="shrink-0 text-muted-foreground/50">
                   (+{tip.points} pkt)
                 </span>
               </div>
@@ -162,7 +212,7 @@ export function DescriptionResult({ result, onRegenerate }: DescriptionResultPro
         ) : null}
       </div>
 
-      <div className="rounded-2xl border border-border/50 bg-card/50 p-5">
+      <div className="gradient-border p-5">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Tytuł SEO
@@ -178,27 +228,27 @@ export function DescriptionResult({ result, onRegenerate }: DescriptionResultPro
             </span>
             <button
               type="button"
-              onClick={() => void handleCopy(seoTitle)}
-              className="rounded-lg bg-secondary px-2 py-1 text-xs text-muted-foreground transition-all hover:bg-emerald-500/20 hover:text-emerald-400"
+              onClick={() => void handleSectionCopy(seoTitle, "title")}
+              className={copyButtonClass("title")}
             >
-              📋 Kopiuj
+              {copiedSection === "title" ? "✅ Skopiowano!" : "📋 Kopiuj"}
             </button>
           </div>
         </div>
         <p className="text-base font-semibold text-foreground">{seoTitle}</p>
       </div>
 
-      <div className="rounded-2xl border border-border/50 bg-card/50 p-5">
+      <div className="gradient-border p-5">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Opis krótki
           </span>
           <button
             type="button"
-            onClick={() => void handleCopy(shortDescription)}
-            className="rounded-lg bg-secondary px-2 py-1 text-xs text-muted-foreground transition-all hover:bg-emerald-500/20 hover:text-emerald-400"
+            onClick={() => void handleSectionCopy(shortDescription, "short")}
+            className={copyButtonClass("short")}
           >
-            📋 Kopiuj
+            {copiedSection === "short" ? "✅ Skopiowano!" : "📋 Kopiuj"}
           </button>
         </div>
         <p className="text-sm leading-relaxed text-foreground">
@@ -206,7 +256,7 @@ export function DescriptionResult({ result, onRegenerate }: DescriptionResultPro
         </p>
       </div>
 
-      <div className="rounded-2xl border border-border/50 bg-card/50 p-5">
+      <div className="gradient-border p-5">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Opis długi
@@ -236,17 +286,19 @@ export function DescriptionResult({ result, onRegenerate }: DescriptionResultPro
             </button>
             <button
               type="button"
-              onClick={() => void handleCopy(stripHtml(longDescription))}
-              className="rounded-lg bg-secondary px-2 py-1 text-xs text-muted-foreground transition-all hover:bg-emerald-500/20 hover:text-emerald-400"
+              onClick={() =>
+                void handleSectionCopy(stripHtml(longDescription), "longText")
+              }
+              className={copyButtonClass("longText")}
             >
-              Kopiuj tekst
+              {copiedSection === "longText" ? "✅ Skopiowano!" : "Kopiuj tekst"}
             </button>
             <button
               type="button"
-              onClick={() => void handleCopy(longDescription)}
-              className="rounded-lg bg-secondary px-2 py-1 text-xs text-muted-foreground transition-all hover:bg-emerald-500/20 hover:text-emerald-400"
+              onClick={() => void handleSectionCopy(longDescription, "longHtml")}
+              className={copyButtonClass("longHtml")}
             >
-              Kopiuj HTML
+              {copiedSection === "longHtml" ? "✅ Skopiowano!" : "Kopiuj HTML"}
             </button>
           </div>
         </div>
@@ -263,15 +315,15 @@ export function DescriptionResult({ result, onRegenerate }: DescriptionResultPro
         )}
       </div>
 
-      <div className="rounded-2xl border border-border/50 bg-card/50 p-5">
+      <div className="gradient-border p-5">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-sm font-medium text-foreground">Tagi SEO</span>
           <button
             type="button"
-            onClick={() => void handleCopy(tags.join(", "))}
-            className="rounded-lg bg-secondary px-2 py-1 text-xs text-muted-foreground transition-all hover:bg-emerald-500/20 hover:text-emerald-400"
+            onClick={() => void handleSectionCopy(tags.join(", "), "tags")}
+            className={copyButtonClass("tags")}
           >
-            📋 Kopiuj wszystkie
+            {copiedSection === "tags" ? "✅ Skopiowano!" : "📋 Kopiuj wszystkie"}
           </button>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -279,8 +331,21 @@ export function DescriptionResult({ result, onRegenerate }: DescriptionResultPro
             <button
               key={`${tag}-${i}`}
               type="button"
-              onClick={() => void handleCopy(tag)}
-              className="cursor-pointer rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400 transition-all hover:bg-emerald-500/20"
+              onClick={async () => {
+                const ok = await copyToClipboard(tag)
+                if (!ok) {
+                  toast.error("Nie udało się skopiować")
+                  return
+                }
+                setClickedTag(tag)
+                toast.success("Skopiowano!")
+                setTimeout(() => setClickedTag(null), 400)
+              }}
+              className={`cursor-pointer rounded-full px-3 py-1.5 text-xs transition-all duration-200 ${
+                clickedTag === tag
+                  ? "scale-110 bg-emerald-500 text-white"
+                  : "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+              }`}
             >
               {tag}
             </button>
@@ -288,7 +353,7 @@ export function DescriptionResult({ result, onRegenerate }: DescriptionResultPro
         </div>
       </div>
 
-      <div className="rounded-2xl border border-border/50 bg-card/50 p-5">
+      <div className="gradient-border p-5">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Meta Description
@@ -306,10 +371,10 @@ export function DescriptionResult({ result, onRegenerate }: DescriptionResultPro
             </span>
             <button
               type="button"
-              onClick={() => void handleCopy(metaDescription)}
-              className="rounded-lg bg-secondary px-2 py-1 text-xs text-muted-foreground transition-all hover:bg-emerald-500/20 hover:text-emerald-400"
+              onClick={() => void handleSectionCopy(metaDescription, "meta")}
+              className={copyButtonClass("meta")}
             >
-              📋 Kopiuj
+              {copiedSection === "meta" ? "✅ Skopiowano!" : "📋 Kopiuj"}
             </button>
           </div>
         </div>
@@ -323,6 +388,21 @@ export function DescriptionResult({ result, onRegenerate }: DescriptionResultPro
           className="rounded-xl border-2 border-emerald-500 bg-transparent px-4 py-2.5 text-sm font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
         >
           🔄 Generuj ponownie
+        </button>
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await exportToPDF(result, productName || "Produkt")
+              toast.success("PDF pobrany! 📄")
+            } catch {
+              toast.error("Błąd generowania PDF")
+            }
+          }}
+          className="hover-glow gradient-border flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-foreground transition-all hover:shadow-[0_0_24px_hsl(160_84%_39%/0.12)]"
+        >
+          <FileText className="h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
+          Eksport PDF
         </button>
         <button
           type="button"

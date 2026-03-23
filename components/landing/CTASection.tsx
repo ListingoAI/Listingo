@@ -3,6 +3,8 @@
 import { motion } from "framer-motion"
 import Link from "next/link"
 
+import { fadeSlideUp } from "@/lib/landing-motion"
+
 export function CTASection() {
   return (
     <section className="relative overflow-hidden px-4 py-24">
@@ -16,10 +18,7 @@ export function CTASection() {
       />
 
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-50px" }}
-        transition={{ duration: 0.5 }}
+        {...fadeSlideUp}
         className="relative z-10 mx-auto max-w-2xl text-center"
       >
         <h2 className="text-3xl font-bold text-foreground md:text-4xl">
@@ -31,9 +30,9 @@ export function CTASection() {
         </p>
         <Link
           href="/register"
-          className="mt-8 inline-block rounded-xl bg-emerald-500 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-emerald-500/25 transition-all hover:scale-105 hover:bg-emerald-600"
+          className="cta-primary-shimmer mt-8 inline-block rounded-xl bg-emerald-500 px-8 py-4 text-lg font-semibold text-black shadow-lg shadow-emerald-500/25 transition-all hover:scale-105 hover:bg-emerald-400"
         >
-          Zacznij za darmo — 5 opisów gratis →
+          <span>Zacznij za darmo — 5 opisów gratis →</span>
         </Link>
         <p className="mt-4 text-sm text-muted-foreground">
           Konfiguracja w 30 sekund. Bez karty kredytowej.
@@ -42,3 +41,5 @@ export function CTASection() {
     </section>
   )
 }
+
+export default CTASection

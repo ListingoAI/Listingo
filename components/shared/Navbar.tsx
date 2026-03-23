@@ -98,9 +98,9 @@ export function Navbar() {
           </Link>
           <Link
             href="/register"
-            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white transition-all hover:scale-105 hover:bg-emerald-600 hover:shadow-lg hover:shadow-emerald-500/25"
+            className="cta-primary-shimmer rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-black transition-all hover:scale-105 hover:bg-emerald-400 hover:shadow-lg hover:shadow-emerald-500/25"
           >
-            Zacznij za darmo →
+            <span>Zacznij za darmo →</span>
           </Link>
         </div>
 
@@ -153,9 +153,12 @@ export function Navbar() {
                 >
                   Zaloguj się
                 </Link>
-                <Button asChild className="w-full rounded-lg bg-emerald-500 text-white hover:scale-105 hover:bg-emerald-600 hover:shadow-lg hover:shadow-emerald-500/25">
+                <Button
+                  asChild
+                  className="cta-primary-shimmer w-full rounded-lg bg-emerald-500 text-black hover:scale-105 hover:bg-emerald-400 hover:shadow-lg hover:shadow-emerald-500/25"
+                >
                   <Link href="/register" onClick={closeMobile}>
-                    Zacznij za darmo →
+                    <span>Zacznij za darmo →</span>
                   </Link>
                 </Button>
               </div>
@@ -166,3 +169,5 @@ export function Navbar() {
     </header>
   )
 }
+
+export default Navbar

@@ -54,8 +54,8 @@ const companyLinks = [
 ] as const
 
 const legalLinks = [
-  { href: "#", label: "Regulamin" },
-  { href: "#", label: "Polityka prywatności" },
+  { href: "/regulamin", label: "Regulamin" },
+  { href: "/polityka-prywatnosci", label: "Polityka prywatności" },
   { href: "#", label: "RODO" },
   { href: "#", label: "Cookies" },
 ] as const
@@ -168,3 +168,5 @@ export function Footer() {
     </footer>
   )
 }
+
+export default Footer

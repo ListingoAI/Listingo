@@ -18,9 +18,11 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
     pathname === prefix || pathname.startsWith(`${prefix}/`)
   )
 
+  const showNavbar = !hideMarketingNav && pathname !== "/"
+
   return (
     <>
-      {!hideMarketingNav ? <Navbar /> : null}
+      {showNavbar ? <Navbar /> : null}
       <div className={hideMarketingNav ? "" : "pt-16"}>{children}</div>
     </>
   )

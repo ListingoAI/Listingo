@@ -50,3 +50,279 @@ html {
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(160 84% 39%);
 }
+
+/* ==========================================
+   PREMIUM EFFECTS — Listingo v2.0
+   ========================================== */
+
+/* Gradient borders na kartach */
+.gradient-border {
+  position: relative;
+  background: hsl(222.2 47% 8%);
+  border-radius: 1rem;
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 1rem;
+  padding: 1px;
+  background: linear-gradient(135deg, hsl(160 84% 39% / 0.3), transparent 50%, hsl(160 84% 39% / 0.1));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Hover glow effect */
+.hover-glow {
+  transition: all 0.3s ease;
+}
+.hover-glow:hover {
+  box-shadow: 0 0 30px hsl(160 84% 39% / 0.1), 
+              0 0 60px hsl(160 84% 39% / 0.05);
+}
+
+/* Animated gradient text */
+.gradient-text-animated {
+  background: linear-gradient(90deg, #10B981, #34D399, #6EE7B7, #34D399, #10B981);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-shift 3s linear infinite;
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+/* Floating animation */
+.float {
+  animation: float 6s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+/* Shimmer loading effect */
+.shimmer {
+  background: linear-gradient(90deg, 
+    hsl(222.2 47% 8%) 0%, 
+    hsl(222.2 47% 12%) 50%, 
+    hsl(222.2 47% 8%) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Count up animation */
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-count-up {
+  animation: count-up 0.6s ease-out forwards;
+}
+
+/* Typing cursor */
+.typing-cursor::after {
+  content: '|';
+  animation: blink 1s step-end infinite;
+  color: hsl(160 84% 39%);
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Partner logos — infinite marquee (two identical strips, -50% loop) */
+@keyframes integration-marquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+.integration-marquee-track {
+  animation: integration-marquee 42s linear infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .integration-marquee-track {
+    animation: none;
+    transform: none;
+  }
+}
+
+/* Premium card hover */
+.premium-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.premium-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 40px hsl(160 84% 39% / 0.08);
+  border-color: hsl(160 84% 39% / 0.3);
+}
+
+/* Landing — subtle card lift on hover */
+.landing-card-lift {
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.28s ease;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .landing-card-lift:hover {
+    transform: translateY(-5px);
+    box-shadow:
+      0 22px 44px -14px rgba(0, 0, 0, 0.55),
+      0 0 0 1px rgba(16, 185, 129, 0.12);
+  }
+}
+
+/* Primary CTA — sheen sweep + delikatny „pulse” jasności */
+.cta-primary-shimmer {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.cta-primary-shimmer > * {
+  position: relative;
+  z-index: 2;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cta-primary-shimmer {
+    animation: cta-primary-breathe 2.8s ease-in-out infinite;
+  }
+  .cta-primary-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 0%,
+      transparent 40%,
+      rgba(255, 255, 255, 0.22) 50%,
+      transparent 60%,
+      transparent 100%
+    );
+    transform: translateX(-120%);
+    animation: cta-primary-sheen 3.4s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 1;
+  }
+}
+@keyframes cta-primary-sheen {
+  0%,
+  20% {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  55% {
+    transform: translateX(120%);
+    opacity: 1;
+  }
+  70%,
+  100% {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+}
+@keyframes cta-primary-breathe {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.05);
+  }
+}
+
+/* Pricing — puls „NAJCZĘŚCIEJ WYBIERANY” */
+@media (prefers-reduced-motion: no-preference) {
+  .pricing-popular-badge {
+    animation: pricing-popular-badge-pulse 2.4s ease-in-out infinite;
+  }
+}
+@keyframes pricing-popular-badge-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 4px 18px rgba(16, 185, 129, 0.4),
+      0 0 0 0 rgba(16, 185, 129, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 6px 28px rgba(16, 185, 129, 0.55),
+      0 0 0 6px rgba(16, 185, 129, 0.12);
+  }
+}
+
+/* Staggered animation for lists */
+.stagger-item {
+  opacity: 0;
+  animation: count-up 0.4s ease-out forwards;
+}
+
+/* Spotlight effect on mouse */
+.spotlight {
+  position: relative;
+  overflow: hidden;
+}
+.spotlight::after {
+  content: '';
+  position: absolute;
+  top: var(--mouse-y, -100px);
+  left: var(--mouse-x, -100px);
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, hsl(160 84% 39% / 0.06), transparent 70%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: top 0.1s, left 0.1s;
+}
+
+/* Bento feature chart bars */
+@keyframes features-bento-bar-grow {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--bar-h, 50%);
+  }
+}
+.features-bento-bar {
+  height: 0;
+  animation: features-bento-bar-grow 0.9s ease-out forwards;
+}
+
+/* Score ring animation (r=40 → 2πr ≈ 251.33) */
+@keyframes score-fill {
+  from {
+    stroke-dashoffset: 251.33;
+  }
+}
+
+/* Tooltip arrow */
+.tooltip-arrow::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background: hsl(222.2 47% 11%);
+  border-right: 1px solid hsl(217.2 32.6% 17.5%);
+  border-bottom: 1px solid hsl(217.2 32.6% 17.5%);
+}

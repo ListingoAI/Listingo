@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion"
 
+import { fadeSlideUp } from "@/lib/landing-motion"
 import {
   Accordion,
   AccordionContent,
@@ -56,13 +57,7 @@ export function FAQSection() {
   return (
     <section id="faq" className="px-4 py-24">
       <div className="mx-auto max-w-3xl">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-50px" }}
-          transition={{ duration: 0.5 }}
-          className="text-center"
-        >
+        <motion.div {...fadeSlideUp} className="text-center">
           <span className="mb-4 inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
             FAQ
           </span>
@@ -75,10 +70,8 @@ export function FAQSection() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-50px" }}
-          transition={{ duration: 0.5, delay: 0.1 }}
+          {...fadeSlideUp}
+          transition={{ ...fadeSlideUp.transition, delay: 0.1 }}
           className="mt-12"
         >
           <Accordion type="single" collapsible className="space-y-4">
@@ -86,7 +79,7 @@ export function FAQSection() {
               <AccordionItem
                 key={item.question}
                 value={`item-${index + 1}`}
-                className="rounded-xl border border-border/50 bg-card/30 px-6 transition-all data-[state=open]:border-emerald-500/30 data-[state=open]:bg-emerald-500/5 not-last:border-b-0"
+                className="landing-card-lift rounded-xl border border-border/50 bg-card/30 px-6 transition-colors data-[state=open]:border-emerald-500/30 data-[state=open]:bg-emerald-500/5 not-last:border-b-0"
               >
                 <AccordionTrigger className="py-4 text-left font-medium text-foreground transition-colors hover:text-emerald-400 hover:no-underline">
                   {item.question}
@@ -102,3 +95,5 @@ export function FAQSection() {
     </section>
   )
 }
+
+export default FAQSection

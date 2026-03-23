@@ -12,7 +12,7 @@ import type { User } from "@supabase/supabase-js"
 
 const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard", emoji: "📊" },
-  { href: "/dashboard/generate", label: "Generuj opis", emoji: "✨" },
+  { href: "/dashboard/generate", label: "AI Sales Hub", emoji: "⚡" },
   { href: "/dashboard/descriptions", label: "Moje opisy", emoji: "📋" },
   { href: "/dashboard/brand", label: "Brand Voice", emoji: "🎨" },
   { href: "/dashboard/settings", label: "Ustawienia", emoji: "⚙️" },

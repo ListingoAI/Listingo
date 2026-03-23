@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import toast from "react-hot-toast"
 
+import { QualityScoreRing } from "@/components/shared/QualityScoreRing"
 import { PLATFORMS } from "@/lib/constants"
 import { createClient } from "@/lib/supabase/client"
 import type { Description } from "@/lib/types"
@@ -230,10 +231,13 @@ export default function DescriptionsPage() {
 
       {!loading && filtered.length > 0 ? (
         <div className="space-y-3">
-          {filtered.map((desc) => (
+          {filtered.map((desc, index) => (
             <div
               key={desc.id}
-              className="group flex items-center gap-4 rounded-xl border border-border/50 bg-card/50 p-4 transition-all hover:border-emerald-500/20"
+              className="group premium-card gradient-border stagger-item flex items-center gap-4 rounded-xl p-4 transition-all hover:border-emerald-500/30"
+              style={{
+                animationDelay: `${Math.min(index, 24) * 0.06}s`,
+              }}
             >
               <button
                 type="button"
@@ -283,19 +287,7 @@ export default function DescriptionsPage() {
               </Link>
 
               <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-                {desc.quality_score > 0 ? (
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      desc.quality_score >= 80
-                        ? "bg-emerald-500/20 text-emerald-400"
-                        : desc.quality_score >= 60
-                          ? "bg-yellow-500/20 text-yellow-400"
-                          : "bg-red-500/20 text-red-400"
-                    }`}
-                  >
-                    {desc.quality_score}
-                  </span>
-                ) : null}
+                <QualityScoreRing score={desc.quality_score ?? 0} />
 
                 <button
                   type="button"

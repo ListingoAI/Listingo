@@ -1,38 +1,28 @@
-import { BeforeAfterSection } from "@/components/landing/BeforeAfterSection"
-import { CTASection } from "@/components/landing/CTASection"
-import { DemoSection } from "@/components/landing/DemoSection"
-import { FAQSection } from "@/components/landing/FAQSection"
-import { FeaturesSection } from "@/components/landing/FeaturesSection"
-import { Footer } from "@/components/landing/Footer"
-import { HeroSection } from "@/components/landing/HeroSection"
-import { PricingSection } from "@/components/landing/PricingSection"
+import Navbar from "@/components/shared/Navbar"
+import HeroSection from "@/components/landing/HeroSection"
+import FeaturesSection from "@/components/landing/FeaturesSection"
+import DemoSection from "@/components/landing/DemoSection"
+import BeforeAfterSection from "@/components/landing/BeforeAfterSection"
+import SocialProofSection from "@/components/landing/SocialProofSection"
+import PricingSection from "@/components/landing/PricingSection"
+import FAQSection from "@/components/landing/FAQSection"
+import CTASection from "@/components/landing/CTASection"
+import Footer from "@/components/landing/Footer"
+
 export default function Home() {
   return (
     <>
+      <Navbar />
       <main className="bg-background">
-        {/* HeroSection */}
         <HeroSection />
-
-        {/* FeaturesSection — #funkcje */}
         <FeaturesSection />
-
-        {/* DemoSection — #jak-dziala */}
         <DemoSection />
-
-        {/* BeforeAfterSection */}
         <BeforeAfterSection />
-
-        {/* PricingSection — #cennik */}
+        <SocialProofSection />
         <PricingSection />
-
-        {/* FAQSection — #faq */}
         <FAQSection />
-
-        {/* CTASection */}
         <CTASection />
       </main>
-
-      {/* Footer */}
       <Footer />
     </>
   )
