@@ -6,8 +6,6 @@ import { FeaturesSection } from "@/components/landing/FeaturesSection"
 import { Footer } from "@/components/landing/Footer"
 import { HeroSection } from "@/components/landing/HeroSection"
 import { PricingSection } from "@/components/landing/PricingSection"
-
-// Navbar: app/layout.tsx. Reszta sekcji — klocki jeden pod drugim.
 export default function Home() {
   return (
     <>
