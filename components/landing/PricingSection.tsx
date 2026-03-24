@@ -191,6 +191,7 @@ function FeatureList({ items }: { items: FeatureRow[] }) {
                   <TooltipTrigger asChild>
                     <button
                       type="button"
+                      suppressHydrationWarning
                       className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/5 text-emerald-400/70 transition-colors hover:border-emerald-500/35 hover:bg-emerald-500/10 hover:text-emerald-400 focus-visible:ring-2 focus-visible:ring-emerald-500/40 focus-visible:outline-none"
                       aria-label={`Co to jest: ${item.text}`}
                     >

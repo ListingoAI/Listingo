@@ -13,23 +13,25 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://listingo.pl'
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: 'Listingo — Opisy produktów w 30 sekund | AI dla e-commerce',
+  title:
+    'Listingo — AI dla sprzedawców: opisy, social, zdjęcia i ceny | e-commerce',
   description:
-    'Jeden asystent AI pod opisy, social media, ceny i zdjęcia — Allegro, Shopify, WooCommerce. SEO i quality score. Po polsku. Zacznij za darmo.',
-  keywords: 'opisy produktów, AI, Allegro, e-commerce, SEO, generator opisów, sztuczna inteligencja, Shopify, WooCommerce',
+    'Jeden panel zamiast kilku narzędzi: opisy pod SEO i marketplace, posty social, sugestie cen, studio zdjęć i ton marki. Allegro, Shopify, WooCommerce i więcej. Zacznij za darmo.',
+  keywords:
+    'opisy produktów AI, generator opisów, Allegro, e-commerce, SEO, social media sprzedaż, cennik AI, zdjęcia produktowe, Shopify, WooCommerce, brand voice',
   openGraph: {
-    title: 'Listingo — Opisy produktów w 30 sekund',
+    title: 'Listingo — Asystent AI pod całą sprzedaż online',
     description:
-      'Jeden asystent AI zamiast skakania między narzędziami. Opisy, social, ceny — Allegro, Shopify, WooCommerce.',
+      'Opisy, social, ceny, zdjęcia i spójny głos marki — w jednym miejscu. Dla marketplace’ów i własnych sklepów.',
     type: 'website',
     locale: 'pl_PL',
     siteName: 'Listingo',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Listingo — AI opisy produktów',
+    title: 'Listingo — Asystent AI pod całą sprzedaż online',
     description:
-      'AI pod całą sprzedaż online: opisy, social, ceny. Allegro, Shopify, WooCommerce.',
+      'Opisy, social, ceny i zdjęcia produktów w jednym panelu. Dla Allegro, Shopify, WooCommerce i nie tylko.',
   },
   robots: {
     index: true,

@@ -3,6 +3,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import { cookies } from "next/headers"
 
 import openai from "@/lib/openai"
+import { getPlatformContext } from "@/lib/prompts/description-generator"
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,13 +48,13 @@ export async function POST(req: NextRequest) {
       messages: [
         {
           role: "system",
-          content: `Jesteś ekspertem od wyceny produktów e-commerce w Polsce. Na podstawie nazwy produktu, kategorii i cech, zasugeruj optymalną cenę sprzedaży.
+          content: `Jesteś ekspertem od wyceny produktów e-commerce. Na podstawie nazwy produktu, kategorii, cech i platformy sprzedaży, zasugeruj optymalną cenę.
 
 Uwzględnij:
-- Typowe ceny na Allegro/polskim rynku
+- Typowe ceny na danej platformie i rynku docelowym
 - Jakość produktu na podstawie cech
 - Sezon (obecna data: ${new Date().toLocaleDateString("pl-PL")})
-- Marżę sprzedawcy
+- Marżę sprzedawcy i prowizje platformy
 
 Odpowiedz JSON:
 {
@@ -69,7 +70,7 @@ Odpowiedz JSON:
         },
         {
           role: "user",
-          content: `Produkt: ${productName}\nKategoria: ${category}\nCechy: ${features}\nPlatforma: ${platform}`,
+          content: `Produkt: ${productName}\nKategoria: ${category}\nCechy: ${features}\n${getPlatformContext(platform || 'ogolny')}`,
         },
       ],
       temperature: 0.5,

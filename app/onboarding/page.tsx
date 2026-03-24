@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
+import { ListingoBoltMark } from "@/components/shared/ListingoBoltMark"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -89,9 +90,7 @@ export default function OnboardingPage() {
               href="/"
               className="inline-flex items-center gap-1.5 transition-opacity hover:opacity-80"
             >
-              <span className="text-lg" aria-hidden>
-                ⚡
-              </span>
+              <ListingoBoltMark className="h-6 w-auto" />
               <span className="bg-linear-to-r from-emerald-400 to-emerald-600 bg-clip-text text-base font-bold text-transparent">
                 Listingo
               </span>

@@ -40,9 +40,7 @@ function LogoLink({
         className
       )}
     >
-      <span className="text-2xl" aria-hidden>
-        ⚡
-      </span>
+      <ListingoBoltMark className="h-8 w-auto" priority />
       <span className="bg-linear-to-r from-emerald-400 to-emerald-600 bg-clip-text text-xl font-bold text-transparent">
         Listingo
       </span>

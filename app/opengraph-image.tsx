@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og"
 
 export const runtime = "edge"
-export const alt = "Listingo — AI opisy produktów w 30 sekund"
+export const alt = "Listingo — Asystent AI pod całą sprzedaż online"
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
@@ -22,7 +22,6 @@ export default async function Image() {
           position: "relative",
         }}
       >
-        {/* Glow */}
         <div
           style={{
             position: "absolute",
@@ -37,7 +36,6 @@ export default async function Image() {
           }}
         />
 
-        {/* Logo */}
         <div
           style={{
             display: "flex",
@@ -60,7 +58,6 @@ export default async function Image() {
           </span>
         </div>
 
-        {/* Subtitle */}
         <p
           style={{
             fontSize: 32,
@@ -68,12 +65,11 @@ export default async function Image() {
             marginTop: 8,
           }}
         >
-          Opisy produktów w 30 sekund
+          Opisy, social, ceny i zdjęcia w jednym miejscu
         </p>
 
-        {/* Tags */}
         <div style={{ display: "flex", gap: 12, marginTop: 32 }}>
-          {["AI", "Allegro", "SEO", "E-commerce"].map((tag) => (
+          {["AI", "Opisy", "Social", "Zdjęcia"].map((tag) => (
             <span
               key={tag}
               style={{
@@ -90,7 +86,6 @@ export default async function Image() {
           ))}
         </div>
 
-        {/* URL */}
         <p
           style={{
             position: "absolute",

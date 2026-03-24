@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { useState } from "react"
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
+import { ListingoBoltMark } from "@/components/shared/ListingoBoltMark"
 import { useUser } from "@/hooks/useUser"
 import { planLabel } from "@/lib/plans"
 import type { Profile } from "@/lib/types"
@@ -69,9 +70,7 @@ function SidebarBody({
         onClick={onLinkClick}
         className="mb-8 flex items-center gap-2"
       >
-        <span className="text-2xl" aria-hidden>
-          ⚡
-        </span>
+        <ListingoBoltMark className="h-8 w-auto" />
         <span className="bg-linear-to-r from-emerald-400 to-emerald-600 bg-clip-text text-xl font-bold text-transparent">
           Listingo
         </span>
@@ -233,9 +232,7 @@ export default function DashboardLayout({
               <Menu className="h-5 w-5" />
             </button>
             <Link href="/dashboard" className="flex items-center gap-1.5">
-              <span className="text-lg" aria-hidden>
-                ⚡
-              </span>
+              <ListingoBoltMark className="h-6 w-auto" />
               <span className="bg-linear-to-r from-emerald-400 to-emerald-600 bg-clip-text text-base font-bold text-transparent">
                 Listingo
               </span>

@@ -16,9 +16,12 @@ export const CATEGORIES = [
 // Platformy sprzedażowe
 export const PLATFORMS = [
   { value: "allegro", label: "Allegro", emoji: "🛒" },
+  { value: "amazon", label: "Amazon", emoji: "📦" },
   { value: "shopify", label: "Shopify", emoji: "🛍️" },
+  { value: "shoper", label: "Shoper", emoji: "🏪" },
   { value: "woocommerce", label: "WooCommerce", emoji: "🌐" },
-  { value: "olx", label: "OLX", emoji: "📦" },
+  { value: "ebay", label: "eBay", emoji: "🏷️" },
+  { value: "olx", label: "OLX", emoji: "📋" },
   { value: "ogolny", label: "Ogólny", emoji: "📝" },
 ] as const
 

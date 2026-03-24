@@ -18,7 +18,7 @@ const jsonLd = {
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web",
   description:
-    "Jeden asystent AI pod opisy, social media, ceny i zdjęcia. Allegro, Shopify, WooCommerce. Plan darmowy z limitami.",
+    "Asystent AI pod opisy, social media, sugestie cen i ulepszanie zdjęć — jeden panel dla marketplace’ów i sklepów. Plan darmowy z limitami.",
   offers: {
     "@type": "Offer",
     price: "0",

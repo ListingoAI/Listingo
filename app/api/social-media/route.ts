@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import openai from '@/lib/openai'
+import { getPlatformContext } from '@/lib/prompts/description-generator'
 
 export async function POST(req: NextRequest) {
   try {
@@ -60,7 +61,7 @@ Odpowiedz JSON:
         },
         {
           role: 'user',
-          content: `Produkt: ${productName}\nOpis: ${shortDescription}\nPlatforma sprzedaży: ${platform}`
+          content: `Produkt: ${productName}\nOpis: ${shortDescription}\n${getPlatformContext(platform || 'ogolny')}`
         }
       ],
       temperature: 0.8,

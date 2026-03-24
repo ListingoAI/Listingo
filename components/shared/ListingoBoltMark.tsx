@@ -1,14 +1,31 @@
-/** Wspólna ikona marki (zamiast emoji w nav / stopce). */
-export function ListingoBoltMark({ className }: { className?: string }) {
+import Image from "next/image"
+
+import { cn } from "@/lib/utils"
+
+/** Plik w `public/logos/listingo-logo.webp` */
+export const LISTINGO_LOGO_SRC = "/logos/listingo-logo.webp"
+
+/** Znak graficzny marki (logo) — używany w nav, stopce, dashboardzie. */
+export function ListingoBoltMark({
+  className,
+  priority,
+}: {
+  className?: string
+  priority?: boolean
+}) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
+    <Image
+      src={LISTINGO_LOGO_SRC}
+      alt=""
+      width={200}
+      height={56}
+      className={cn(
+        "h-8 w-auto shrink-0 object-contain object-left",
+        className
+      )}
+      sizes="200px"
+      priority={priority}
       aria-hidden
-    >
-      <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" />
-    </svg>
+    />
   )
 }

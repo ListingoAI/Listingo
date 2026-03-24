@@ -1,6 +1,6 @@
 "use client"
 
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
+import { AnimatePresence, motion } from "framer-motion"
 import type { CSSProperties } from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
 
@@ -189,181 +189,6 @@ function MockProductShape({ className }: { className?: string }) {
       <path stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" d="M20 22h40M20 30h28" opacity="0.7" />
       <circle cx="58" cy="38" r="4" stroke="currentColor" strokeWidth="1.5" />
     </svg>
-  )
-}
-
-const QUALITY_RING_R = 18
-const QUALITY_RING_CIRC = 2 * Math.PI * QUALITY_RING_R
-const QUALITY_SCORE_FRAC = 0.88
-
-/** Animowany mock podglądu jakości w karcie Core (szanuje prefers-reduced-motion). */
-function CoreQualityPreviewMockup({ className }: { className?: string }) {
-  const reduceMotion = useReducedMotion()
-  const circ = QUALITY_RING_CIRC
-  const r = QUALITY_RING_R
-  const frac = QUALITY_SCORE_FRAC
-  const ringTarget = circ * (1 - frac)
-
-  return (
-    <motion.div
-      className={className}
-      initial={reduceMotion ? false : { opacity: 0, y: 12, scale: 0.96 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={viewport}
-      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-    >
-      <motion.div
-        className="relative overflow-hidden rounded-xl border border-white/10 bg-card/95 p-3 shadow-xl backdrop-blur-sm lg:shadow-lg"
-        animate={
-          reduceMotion
-            ? undefined
-            : {
-                boxShadow: [
-                  "0 20px 40px -14px rgba(0,0,0,0.5)",
-                  "0 22px 48px -12px rgba(16,185,129,0.22)",
-                  "0 20px 40px -14px rgba(0,0,0,0.5)",
-                ],
-              }
-        }
-        transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut" }}
-      >
-        {!reduceMotion && (
-          <motion.div
-            className="pointer-events-none absolute inset-0 z-0 skew-x-12 bg-linear-to-r from-transparent via-emerald-400/12 to-transparent opacity-0"
-            animate={{ x: ["-120%", "120%"], opacity: [0, 0.35, 0] }}
-            transition={{ duration: 2.4, repeat: Infinity, repeatDelay: 2.8, ease: "easeInOut" }}
-            aria-hidden
-          />
-        )}
-        <div className="relative z-10">
-          <div className="flex items-center justify-between gap-2">
-            <motion.p
-              className="text-[10px] font-medium text-muted-foreground"
-              animate={reduceMotion ? undefined : { opacity: [0.72, 1, 0.72] }}
-              transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-            >
-              Podgląd jakości (przykład)
-            </motion.p>
-            <motion.span
-              className="relative flex shrink-0 items-center gap-1 overflow-hidden rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400"
-              animate={reduceMotion ? undefined : { scale: [1, 1.03, 1] }}
-              transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-            >
-              {!reduceMotion && (
-                <motion.span
-                  className="pointer-events-none absolute inset-0 bg-linear-to-r from-transparent via-white/15 to-transparent"
-                  animate={{ x: ["-100%", "200%"] }}
-                  transition={{ duration: 1.8, repeat: Infinity, repeatDelay: 2.4, ease: "linear" }}
-                  aria-hidden
-                />
-              )}
-              <span className="relative flex items-center gap-0.5">
-                <span className="relative flex h-2 w-2 items-center justify-center">
-                  {!reduceMotion && (
-                    <motion.span
-                      className="absolute inline-flex h-full w-full rounded-full bg-emerald-400/60"
-                      animate={{ scale: [1, 2.2], opacity: [0.45, 0] }}
-                      transition={{ duration: 1.4, repeat: Infinity, ease: "easeOut" }}
-                      aria-hidden
-                    />
-                  )}
-                  <span className="relative h-1 w-1 rounded-full bg-emerald-400" aria-hidden />
-                </span>
-                Symulacja
-              </span>
-            </motion.span>
-          </div>
-
-          <div className="mt-2 flex items-center gap-2">
-            <motion.div
-              className="relative flex h-10 w-10 shrink-0 items-center justify-center"
-              animate={reduceMotion ? undefined : { filter: ["drop-shadow(0 0 0 transparent)", "drop-shadow(0 0 6px rgba(52,211,153,0.45))", "drop-shadow(0 0 0 transparent)"] }}
-              transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <svg viewBox="0 0 44 44" fill="none" className="absolute inset-0 h-full w-full" aria-hidden>
-                <circle stroke="rgba(255,255,255,0.08)" strokeWidth="2.5" cx="22" cy="22" r={r} />
-                <motion.circle
-                  stroke="rgba(16,185,129,0.9)"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  fill="none"
-                  cx="22"
-                  cy="22"
-                  r={r}
-                  transform="rotate(-90 22 22)"
-                  strokeDasharray={circ}
-                  initial={reduceMotion ? { strokeDashoffset: ringTarget } : { strokeDashoffset: circ }}
-                  animate={{ strokeDashoffset: ringTarget }}
-                  transition={{ duration: reduceMotion ? 0 : 1.2, ease: [0.22, 1, 0.36, 1] }}
-                />
-              </svg>
-              <motion.span
-                className="relative text-xs font-bold text-emerald-400 tabular-nums"
-                initial={reduceMotion ? false : { scale: 0.4, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: "spring", stiffness: 420, damping: 22, delay: reduceMotion ? 0 : 0.55 }}
-              >
-                <motion.span
-                  className="inline-block"
-                  animate={reduceMotion ? undefined : { scale: [1, 1.07, 1] }}
-                  transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  88
-                </motion.span>
-              </motion.span>
-            </motion.div>
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold text-muted-foreground">Oferta — dane demonstracyjne</p>
-              <motion.p
-                className="mt-0.5 text-[10px] text-emerald-400"
-                animate={reduceMotion ? undefined : { opacity: [0.55, 1, 0.55] }}
-                transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-              >
-                Tak może wyglądać podsumowanie
-              </motion.p>
-            </div>
-          </div>
-
-          <motion.div
-            className="mt-2 grid grid-cols-3 gap-0.5 text-[9px] text-muted-foreground/60"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-8px" }}
-            variants={{
-              hidden: {},
-              visible: {
-                transition: { staggerChildren: reduceMotion ? 0 : 0.1, delayChildren: reduceMotion ? 0 : 0.35 },
-              },
-            }}
-          >
-            {[
-              ["SEO", "86"],
-              ["CTA", "84"],
-              ["Czytelność", "89"],
-            ].map(([k, v]) => (
-              <motion.div
-                key={k}
-                variants={{
-                  hidden: { opacity: 0, y: 8 },
-                  visible: { opacity: 1, y: 0 },
-                }}
-                transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-                className="flex flex-col items-center gap-0.5 rounded-md bg-white/3 py-1"
-              >
-                <motion.span
-                  className="font-semibold text-foreground/80 tabular-nums"
-                  animate={reduceMotion ? undefined : { opacity: [0.75, 1, 0.75] }}
-                  transition={{ duration: 2.6 + (k === "SEO" ? 0 : k === "CTA" ? 0.35 : 0.7), repeat: Infinity, ease: "easeInOut" }}
-                >
-                  {v}
-                </motion.span>
-                <span className="text-center leading-tight">{k}</span>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </motion.div>
-    </motion.div>
   )
 }
 
@@ -642,19 +467,49 @@ export function FeaturesSection() {
 
           <span className="relative z-10 inline-flex items-center gap-2 text-xs font-semibold tracking-widest text-emerald-400 uppercase">
             <span className="h-px w-4 bg-emerald-500/60" />
-            Treści na listing
+            Core feature
           </span>
 
           <div className="relative z-10 mt-4 flex items-center gap-3">
             <IconBadge icon={<IconDoc className="h-5 w-5" />} glow="emerald" />
-            <h3 className="text-xl font-bold sm:text-2xl">Jeden przebieg, komplet pod kanał sprzedaży</h3>
+            <h3 className="text-xl font-bold sm:text-2xl">Opisy, które sprzedają</h3>
           </div>
 
           <p className="relative z-10 mt-3 max-w-sm text-sm text-muted-foreground sm:text-base">
-            Tytuł pod wyszukiwarki, krótki i rozbudowany opis, tagi oraz pola meta — w jednym toku pracy, z myślą o marketplace’ach i sklepach online. Treść powstaje z danych, które podajesz Ty; nic nie jest zaciągane z cudzych ofert ani wyświetlane jako „twój” produkt w marketingu.
+            Tytuł SEO, opis krótki i długi, tagi oraz meta&nbsp;— wszystko gotowe w 30&nbsp;sekund. Optymalizowane pod Allegro, Shopify i WooCommerce.
           </p>
 
-          <CoreQualityPreviewMockup className="pointer-events-none absolute right-3 bottom-3 w-54 translate-x-2 translate-y-2 transition-transform duration-500 sm:right-4 sm:bottom-4 group-hover:translate-x-0 group-hover:translate-y-0 lg:static lg:right-auto lg:bottom-auto lg:mt-5 lg:w-full lg:max-w-sm lg:translate-x-0 lg:translate-y-0" />
+          {/* Floating quality card */}
+          <div className="pointer-events-none absolute right-3 bottom-3 w-54 translate-x-2 translate-y-2 rounded-xl border border-white/8 bg-card/90 p-3 shadow-xl backdrop-blur-sm transition-transform duration-500 sm:right-4 sm:bottom-4 group-hover:translate-x-0 group-hover:translate-y-0 lg:static lg:right-auto lg:bottom-auto lg:mt-5 lg:w-full lg:max-w-sm lg:translate-x-0 lg:translate-y-0 lg:shadow-lg">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-medium text-muted-foreground">Quality Score</p>
+              <span className="flex items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
+                <svg viewBox="0 0 8 8" fill="currentColor" className="h-1 w-1" aria-hidden><circle cx="4" cy="4" r="4" /></svg>
+                Gotowy
+              </span>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
+                <svg viewBox="0 0 44 44" fill="none" className="absolute inset-0 h-full w-full -rotate-90" aria-hidden>
+                  <circle stroke="rgba(255,255,255,0.07)" strokeWidth="2.5" cx="22" cy="22" r="18" />
+                  <circle stroke="rgba(16,185,129,0.85)" strokeWidth="2.5" strokeLinecap="round" cx="22" cy="22" r="18" strokeDasharray={`${2 * Math.PI * 18 * 0.94} ${2 * Math.PI * 18}`} />
+                </svg>
+                <span className="relative text-xs font-bold text-emerald-400">94</span>
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold">Portfel męski RFID</p>
+                <p className="mt-0.5 text-[10px] text-emerald-400">Gotowy do publikacji</p>
+              </div>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-0.5 text-[9px] text-muted-foreground/60">
+              {[["SEO", "97"], ["CTA", "91"], ["Czytelność", "93"]].map(([k, v]) => (
+                <div key={k} className="flex flex-col items-center gap-0.5 rounded-md bg-white/3 py-1">
+                  <span className="font-semibold text-foreground/80">{v}</span>
+                  <span className="text-center leading-tight">{k}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </motion.div>
 
         {/* 2 — Photo Studio (na lg: lewa strona, 2×2 — duży podgląd przed/po) */}

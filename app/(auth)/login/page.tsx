@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
+import { ListingoBoltMark } from "@/components/shared/ListingoBoltMark"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -64,9 +65,7 @@ export default function LoginPage() {
   return (
     <div className="space-y-8">
       <Link href="/" className="mb-4 flex items-center gap-2 lg:hidden">
-        <span className="text-2xl" aria-hidden>
-          ⚡
-        </span>
+        <ListingoBoltMark className="h-8 w-auto" />
         <span className="bg-linear-to-r from-emerald-400 to-emerald-600 bg-clip-text text-xl font-bold text-transparent">
           Listingo
         </span>
