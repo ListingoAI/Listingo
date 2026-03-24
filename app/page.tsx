@@ -9,11 +9,34 @@ import FAQSection from "@/components/landing/FAQSection"
 import CTASection from "@/components/landing/CTASection"
 import Footer from "@/components/landing/Footer"
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://listingo.pl"
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Listingo",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  description:
+    "Jeden asystent AI pod opisy, social media, ceny i zdjęcia. Allegro, Shopify, WooCommerce. Plan darmowy z limitami.",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "PLN",
+    description: "Plan darmowy z limitami",
+  },
+  url: siteUrl,
+}
+
 export default function Home() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <Navbar />
-      <main className="bg-background">
+      <main id="main-content" className="bg-background" tabIndex={-1}>
         <HeroSection />
         <FeaturesSection />
         <DemoSection />

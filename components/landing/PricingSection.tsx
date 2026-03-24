@@ -21,8 +21,9 @@ import {
 type FeatureRow = { ok: boolean; text: string; tooltip?: string }
 
 const starterFeatures: FeatureRow[] = [
-  { ok: true, text: "5 opisów AI miesięcznie" },
-  { ok: true, text: "1 platforma" },
+  { ok: true, text: "5 opisów AI / miesiąc" },
+  { ok: true, text: "3 zdjęcia proste tło / miesiąc" },
+  { ok: true, text: "1 platforma (Allegro)" },
   {
     ok: true,
     text: "Quality Score",
@@ -31,17 +32,24 @@ const starterFeatures: FeatureRow[] = [
   },
   {
     ok: true,
-    text: "AI Price Advisor",
+    text: "3 analizy cen AI",
     tooltip:
       "Sugestia ceny na podstawie Twoich danych i typowych widełek rynkowych — punkt wyjścia do decyzji, nie gwarancja „jedynej słusznej” kwoty.",
   },
+  { ok: false, text: "AI Photo Studio Premium" },
   { ok: false, text: "Social Media Generator" },
   { ok: false, text: "Brand Voice" },
-  { ok: false, text: "Multi-language" },
 ]
 
 const growthFeatures: FeatureRow[] = [
   { ok: true, text: "100 opisów AI" },
+  { ok: true, text: "∞ zdjęć z prostym tłem" },
+  {
+    ok: true,
+    text: "20 zdjęć AI Premium (sceny)",
+    tooltip:
+      "Photo Studio: profesjonalne sceny AI (Replicate) po usunięciu tła — limit miesięczny według planu.",
+  },
   { ok: true, text: "Wszystkie platformy" },
   {
     ok: true,
@@ -51,9 +59,9 @@ const growthFeatures: FeatureRow[] = [
   },
   {
     ok: true,
-    text: "💰 AI Price Advisor",
+    text: "💰 AI Price Advisor (∞)",
     tooltip:
-      "Sugestia ceny na podstawie Twoich danych i typowych widełek rynkowych — punkt wyjścia do decyzji, nie gwarancja „jedynej słusznej” kwoty.",
+      "Sugestie cen bez limitu zapytań — na podstawie Twoich danych i typowych widełek rynkowych.",
   },
   {
     ok: true,
@@ -63,27 +71,15 @@ const growthFeatures: FeatureRow[] = [
   },
   {
     ok: true,
-    text: "Quality Score + porady",
+    text: "Filtry i post-processing",
     tooltip:
-      "Ocena 0–100 (SEO, czytelność, sprzedażowość) plus konkretne porady, co dopracować w tytule, bulletach i opisie.",
+      "Korekta jasności, kontrastu, nasycenia i szybkie presety w Photo Studio przed eksportem.",
   },
   {
     ok: true,
-    text: "📸 Generowanie ze zdjęć",
+    text: "Eksport 3 rozmiary",
     tooltip:
-      "Wrzucasz zdjęcie produktu (JPG, PNG, WebP); model rozpoznaje widoczne cechy i na tej podstawie buduje opis.",
-  },
-  {
-    ok: true,
-    text: "Historia opisów",
-    tooltip:
-      "Wygenerowane wersje zapisujemy w koncie — możesz wrócić, porównać wersje i kopiować bez ponownego generowania.",
-  },
-  {
-    ok: false,
-    text: "Multi-language",
-    tooltip:
-      "Opisy i tłumaczenia w kilku językach (np. PL, EN, DE) przy zachowaniu struktury pod dany marketplace.",
+      "Pobieranie zdjęcia w kilku rozdzielczościach pod wymagania marketplace’ów.",
   },
   {
     ok: false,
@@ -91,21 +87,33 @@ const growthFeatures: FeatureRow[] = [
     tooltip:
       "Podgląd tego, jak podobne produkty opisują inni — słowa kluczowe, długość, format — żeby wyjść ponad szablon.",
   },
+  {
+    ok: false,
+    text: "Multi-language",
+    tooltip:
+      "Opisy i tłumaczenia w kilku językach (np. PL, EN, DE) przy zachowaniu struktury pod dany marketplace.",
+  },
 ]
 
 const scaleFeatures: FeatureRow[] = [
-  { ok: true, text: "Nielimitowane opisy" },
+  { ok: true, text: "∞ opisów AI" },
+  {
+    ok: true,
+    text: "100 zdjęć AI Premium / mies",
+    tooltip:
+      "Wyższy miesięczny limit scen premium w Photo Studio (Replicate) w porównaniu do Growth.",
+  },
   {
     ok: true,
     text: "Wszystko z Growth",
     tooltip:
-      "Wszystkie funkcje z planu Growth: m.in. social, Brand Voice, generowanie ze zdjęć, Quality Score z poradami, historia opisów i wszystkie platformy.",
+      "Wszystkie funkcje z planu Growth: m.in. social, Brand Voice, Photo Studio, Price Advisor i wszystkie platformy.",
   },
   {
     ok: true,
-    text: "🔍 Analiza konkurencji",
+    text: "🔍 Analiza konkurencji (URL)",
     tooltip:
-      "Podgląd tego, jak podobne produkty opisują inni — słowa kluczowe, długość, format — żeby wyjść ponad szablon.",
+      "Wklejasz URL listingu konkurencji — analiza słów kluczowych, struktury i formatu opisu.",
   },
   {
     ok: true,
@@ -131,11 +139,18 @@ const scaleFeatures: FeatureRow[] = [
     tooltip:
       "Dostęp programowy do generowania (HTTP API) — pod integrację z własnym sklepem, ERP lub wewnętrznymi narzędziami.",
   },
-  { ok: true, text: "Priorytetowe wsparcie" },
+  {
+    ok: true,
+    text: "Priorytetowe generowanie",
+    tooltip:
+      "Wyższy priorytet w kolejce przy generowaniu treści i scen AI.",
+  },
 ]
 
 /** Tooltips dla pozycji współdzielonych między planami (np. Brand Voice na Starterze jako „brak”). */
 const EXTRA_TOOLTIPS: Record<string, string> = {
+  "AI Photo Studio Premium":
+    "Sceny AI (premium) w Photo Studio po usunięciu tła — dostępne od planu Growth.",
   "Social Media Generator":
     "Generator postów pod social media (hashtagi, CTA) zamiast ręcznego wymyślania każdej publikacji.",
   "Brand Voice":

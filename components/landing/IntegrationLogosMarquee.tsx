@@ -1,6 +1,5 @@
 "use client"
 
-import { useReducedMotion } from "framer-motion"
 import type { SimpleIcon } from "simple-icons"
 import { siAllegro, siShopify, siWoocommerce } from "simple-icons"
 import type { CSSProperties, ReactNode } from "react"
@@ -13,21 +12,14 @@ const AMAZON_SMILE_PATH =
 
 type LogoEntry = {
   id: string
-  /** Kolor marki przy hover (np. `#ff5a00`, zmienna CSS `--brand`) */
   hoverColor: string
-  /** Korekta skali (np. Woo ma cienką ikonę w viewBox 24) */
   innerClass?: string
   node: ReactNode
 }
 
 function BrandSvg({ icon }: { icon: SimpleIcon }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden
-      className="h-14 w-auto max-w-40 shrink-0 sm:h-16"
-    >
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden className="h-7 w-auto shrink-0">
       <path fill="currentColor" d={icon.path} />
     </svg>
   )
@@ -35,21 +27,15 @@ function BrandSvg({ icon }: { icon: SimpleIcon }) {
 
 function OlxWordmark() {
   return (
-    <svg
-      viewBox="0 0 52 26"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden
-      className="h-14 w-auto shrink-0 sm:h-16"
-    >
+    <svg viewBox="0 0 52 26" xmlns="http://www.w3.org/2000/svg" aria-hidden className="h-7 w-auto shrink-0">
       <text
         x="1"
-        y="19.5"
+        y="20"
         fill="currentColor"
         className="select-none"
         style={{
-          fontFamily:
-            "system-ui, -apple-system, 'Segoe UI', sans-serif",
-          fontSize: 19,
+          fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+          fontSize: 20,
           fontWeight: 800,
           letterSpacing: "-0.05em",
         }}
@@ -62,12 +48,7 @@ function OlxWordmark() {
 
 function AmazonSmile() {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden
-      className="h-14 w-auto max-w-40 shrink-0 sm:h-16"
-    >
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden className="h-7 w-auto shrink-0">
       <path fill="currentColor" d={AMAZON_SMILE_PATH} />
     </svg>
   )
@@ -77,7 +58,7 @@ const LOGO_ENTRIES: LogoEntry[] = [
   {
     id: "allegro",
     hoverColor: `#${siAllegro.hex}`,
-    innerClass: "origin-center scale-[1.22]",
+    innerClass: "origin-center scale-[1.55]",
     node: <BrandSvg icon={siAllegro} />,
   },
   {
@@ -88,7 +69,7 @@ const LOGO_ENTRIES: LogoEntry[] = [
   {
     id: "woocommerce",
     hoverColor: `#${siWoocommerce.hex}`,
-    innerClass: "origin-center scale-[1.82]",
+    innerClass: "origin-center scale-[1.65]",
     node: <BrandSvg icon={siWoocommerce} />,
   },
   {
@@ -99,66 +80,30 @@ const LOGO_ENTRIES: LogoEntry[] = [
   {
     id: "amazon",
     hoverColor: "#ff9900",
-    innerClass: "origin-center scale-[1.12]",
+    innerClass: "origin-center scale-[1.05]",
     node: <AmazonSmile />,
   },
 ]
 
-const SLOT =
-  "flex min-h-[5.25rem] shrink-0 items-center justify-center overflow-visible px-2 sm:min-h-[5.75rem] sm:px-3"
-const SLOT_INNER =
-  "flex items-center justify-center text-foreground opacity-40 grayscale transition-[opacity,filter,color,transform] duration-300 ease-out hover:opacity-100 hover:grayscale-0 hover:[color:var(--brand)]"
-
-function LogoRow({ stripKey }: { stripKey: string }) {
+/** Spokojny pas marek — bez szklanego boxa, sheen i animacji. */
+export function IntegrationLogosMarquee() {
   return (
-    <div className="flex shrink-0 items-center gap-7 md:gap-9">
+    <div
+      className="flex flex-wrap items-center justify-center gap-x-6 gap-y-5 sm:gap-x-10 md:gap-x-14"
+      aria-hidden
+    >
       {LOGO_ENTRIES.map(({ id, hoverColor, innerClass, node }) => (
-        <div key={`${stripKey}-${id}`} className={SLOT}>
-          <div
-            className={cn(SLOT_INNER, innerClass)}
-            style={{ "--brand": hoverColor } as CSSProperties}
-          >
-            {node}
-          </div>
+        <div
+          key={id}
+          className={cn(
+            "flex min-h-[2rem] min-w-[2.75rem] items-center justify-center opacity-45 transition-opacity duration-200 hover:opacity-100",
+            innerClass
+          )}
+          style={{ color: hoverColor } as CSSProperties}
+        >
+          {node}
         </div>
       ))}
-    </div>
-  )
-}
-
-export function IntegrationLogosMarquee() {
-  const reduceMotion = useReducedMotion()
-
-  if (reduceMotion) {
-    return (
-      <div
-        className="flex flex-wrap items-center justify-center gap-x-7 gap-y-8 md:gap-x-9"
-        aria-hidden
-      >
-        {LOGO_ENTRIES.map(({ id, hoverColor, innerClass, node }) => (
-          <div key={id} className={SLOT}>
-            <div
-              className={cn(SLOT_INNER, innerClass)}
-              style={{ "--brand": hoverColor } as CSSProperties}
-            >
-              {node}
-            </div>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  return (
-    <div className="relative" aria-hidden>
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-linear-to-r from-background via-background/90 to-transparent sm:w-20" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-linear-to-l from-background via-background/90 to-transparent sm:w-20" />
-      <div className="overflow-x-hidden overflow-y-visible py-3">
-        <div className="integration-marquee-track flex w-max">
-          <LogoRow stripKey="a" />
-          <LogoRow stripKey="b" />
-        </div>
-      </div>
     </div>
   )
 }

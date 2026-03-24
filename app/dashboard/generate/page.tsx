@@ -17,41 +17,11 @@ import {
 } from "@/components/ui/tooltip"
 import { useUser } from "@/hooks/useUser"
 import { CATEGORIES, PLATFORMS, TONES } from "@/lib/constants"
+import { isProOrScale } from "@/lib/plans"
 import type { GenerateResponse } from "@/lib/types"
 import { copyToClipboard } from "@/lib/utils"
 
 type GenerateTabId = "form" | "social" | "price" | "email" | "image" | "url"
-
-type SocialMediaApiResult = {
-  instagram: {
-    caption: string
-    hashtags: string[]
-    bestTime: string
-    tip: string
-  }
-  facebook: {
-    post: string
-    cta: string
-    tip: string
-  }
-  tiktok: {
-    hookLine: string
-    scriptOutline: string
-    hashtags: string[]
-    tip: string
-  }
-}
-
-type PriceAdvisorApiResult = {
-  suggestedPrice: number
-  minPrice: number
-  maxPrice: number
-  currency?: string
-  confidence: number
-  reasoning: string
-  tips: string[]
-  seasonalNote?: string
-}
 
 const TAB_IDS: GenerateTabId[] = [
   "form",
@@ -70,7 +40,6 @@ function GeneratePageContent() {
   const [productName, setProductName] = useState("")
   const [category, setCategory] = useState("")
   const [features, setFeatures] = useState("")
-  const [socialShortDescription, setSocialShortDescription] = useState("")
   const [platform, setPlatform] = useState("allegro")
   const [tone, setTone] = useState("profesjonalny")
   const [useBrandVoice] = useState(false)
@@ -78,13 +47,11 @@ function GeneratePageContent() {
   const [result, setResult] = useState<GenerateResponse | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [error, setError] = useState("")
-  const [socialResult, setSocialResult] = useState<SocialMediaApiResult | null>(
-    null
-  )
+  /* eslint-disable @typescript-eslint/no-explicit-any -- wyniki API social-media / price-advisor */
+  const [socialResult, setSocialResult] = useState<any>(null)
   const [socialLoading, setSocialLoading] = useState(false)
-  const [priceResult, setPriceResult] = useState<PriceAdvisorApiResult | null>(
-    null
-  )
+  const [priceResult, setPriceResult] = useState<any>(null)
+  /* eslint-enable @typescript-eslint/no-explicit-any */
   const [priceLoading, setPriceLoading] = useState(false)
 
   const plan = profile?.plan ?? "free"
@@ -151,7 +118,6 @@ function GeneratePageContent() {
 
       const typed = data as GenerateResponse
       setResult(typed)
-      setSocialShortDescription(typed.shortDescription?.trim() ?? "")
 
       if (typed.qualityScore >= 85) {
         import("canvas-confetti").then((confetti) => {
@@ -183,9 +149,9 @@ function GeneratePageContent() {
     refreshProfile,
   ])
 
-  const handleGenerateSocial = useCallback(async () => {
-    if (!productName.trim() || !socialShortDescription.trim()) {
-      toast.error("Uzupełnij nazwę produktu i krótki opis")
+  async function handleGenerateSocial() {
+    if (!productName.trim()) {
+      toast.error("Wpisz nazwę produktu")
       return
     }
     setSocialLoading(true)
@@ -196,31 +162,27 @@ function GeneratePageContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productName: productName.trim(),
-          shortDescription: socialShortDescription.trim(),
+          shortDescription: features.trim() || productName.trim(),
           platform,
         }),
       })
       const data = await response.json()
-      if (!response.ok) {
-        toast.error(
-          typeof data.error === "string"
-            ? data.error
-            : "Nie udało się wygenerować postów"
-        )
-        return
+      if (response.ok) {
+        setSocialResult(data)
+        toast.success("Posty wygenerowane! 📱")
+      } else {
+        toast.error(data.error || "Błąd generowania postów")
       }
-      setSocialResult(data as SocialMediaApiResult)
-      toast.success("Posty gotowe!")
     } catch {
-      toast.error("Błąd połączenia. Spróbuj ponownie.")
+      toast.error("Błąd połączenia")
     } finally {
       setSocialLoading(false)
     }
-  }, [productName, socialShortDescription, platform])
+  }
 
-  const handleAnalyzePrice = useCallback(async () => {
-    if (!productName.trim() || !features.trim()) {
-      toast.error("Uzupełnij nazwę produktu i cechy")
+  async function handleAnalyzePrice() {
+    if (!productName.trim()) {
+      toast.error("Wpisz nazwę produktu")
       return
     }
     setPriceLoading(true)
@@ -237,22 +199,18 @@ function GeneratePageContent() {
         }),
       })
       const data = await response.json()
-      if (!response.ok) {
-        toast.error(
-          typeof data.error === "string"
-            ? data.error
-            : "Nie udało się przeanalizować ceny"
-        )
-        return
+      if (response.ok) {
+        setPriceResult(data)
+        toast.success("Analiza ceny gotowa! 💰")
+      } else {
+        toast.error(data.error || "Błąd analizy ceny")
       }
-      setPriceResult(data as PriceAdvisorApiResult)
-      toast.success("Analiza ceny gotowa!")
     } catch {
-      toast.error("Błąd połączenia. Spróbuj ponownie.")
+      toast.error("Błąd połączenia")
     } finally {
       setPriceLoading(false)
     }
-  }, [productName, category, features, platform])
+  }
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -322,7 +280,7 @@ function GeneratePageContent() {
                 Starter+
               </span>
             ) : null}
-            {"badge" in tab && tab.badge === "Pro" && plan !== "pro" ? (
+            {"badge" in tab && tab.badge === "Pro" && !isProOrScale(plan) ? (
               <span className="ml-2 rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs text-emerald-400">
                 Pro
               </span>
@@ -673,43 +631,65 @@ Produkcja: Polska`}
                 type="text"
                 value={productName}
                 onChange={(e) => setProductName(e.target.value)}
-                placeholder="np. Słuchawki bezprzewodowe ANC"
+                placeholder="np. Koszulka męska bawełniana oversize"
+                maxLength={200}
                 className="h-10 w-full rounded-lg border border-border/50 bg-secondary/50 px-3 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
             </div>
             <div>
               <Label
-                htmlFor="socialShort"
+                htmlFor="socialFeatures"
                 className="mb-2 block text-sm font-medium text-foreground"
               >
-                Krótki opis
+                Krótki opis / cechy
               </Label>
               <textarea
-                id="socialShort"
-                value={socialShortDescription}
-                onChange={(e) => setSocialShortDescription(e.target.value)}
-                placeholder="Wklej lub uzupełnij opis — po wygenerowaniu opisu w zakładce ✨ Opis wypełni się automatycznie."
-                rows={6}
+                id="socialFeatures"
+                value={features}
+                onChange={(e) => setFeatures(e.target.value)}
+                placeholder="Wpisz cechy produktu — AI stworzy z nich posty"
+                rows={4}
                 className="w-full resize-none rounded-lg border border-border/50 bg-secondary/50 px-3 py-2 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
+            </div>
+            <div>
+              <span className="mb-2 block text-sm font-medium text-foreground">
+                Platforma sprzedaży
+              </span>
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                {PLATFORMS.map((p) => {
+                  const active = platform === p.value
+                  return (
+                    <button
+                      key={p.value}
+                      type="button"
+                      onClick={() => setPlatform(p.value)}
+                      className={`rounded-xl p-3 text-center transition-all ${
+                        active
+                          ? "border-2 border-emerald-500 bg-emerald-500/10"
+                          : "border border-border/50 bg-card/30 hover:border-emerald-500/30"
+                      }`}
+                    >
+                      <div className="text-xl">{p.emoji}</div>
+                      <p className="mt-1 text-xs font-medium">{p.label}</p>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             <button
               type="button"
               onClick={() => void handleGenerateSocial()}
-              disabled={
-                socialLoading ||
-                !productName.trim() ||
-                !socialShortDescription.trim()
-              }
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 font-semibold text-black transition-all hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={socialLoading || !productName.trim()}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-4 text-base font-semibold text-white transition-all hover:scale-[1.02] hover:bg-emerald-600 hover:shadow-lg hover:shadow-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
             >
               {socialLoading ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  Generuję...
+                  Generuję posty...
                 </>
               ) : (
-                "📱 Generuj posty"
+                "📱 Generuj posty social media"
               )}
             </button>
           </div>
@@ -718,7 +698,7 @@ Produkcja: Polska`}
             {!socialResult && !socialLoading ? (
               <div className="rounded-2xl border border-dashed border-border/50 bg-card/30 py-16 text-center">
                 <p className="text-sm text-muted-foreground/50">
-                  Wynik pojawi się tutaj po kliknięciu „Generuj posty”
+                  Wynik pojawi się tutaj po kliknięciu „Generuj posty social media”
                 </p>
               </div>
             ) : null}
@@ -731,76 +711,52 @@ Produkcja: Polska`}
               </div>
             ) : null}
             {socialResult ? (
-              <div className="space-y-6">
-                <div className="rounded-2xl border border-purple-500/10 bg-linear-to-br from-purple-500/5 to-pink-500/5 p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-purple-500 to-pink-500 text-sm text-white">
-                      📸
+              <div className="mt-6 space-y-4">
+                <div className="rounded-2xl border border-purple-500/20 bg-linear-to-br from-purple-500/5 to-pink-500/5 p-5">
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-linear-to-br from-purple-500 to-pink-500 text-xs font-bold text-white">
+                      IG
                     </div>
-                    <span className="font-semibold">Instagram</span>
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {socialResult.instagram?.bestTime ?? ""}
-                    </span>
+                    <span className="text-sm font-semibold">Instagram</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyToClipboard(
+                          `${socialResult.instagram?.caption ?? ""}\n\n${(socialResult.instagram?.hashtags ?? []).join(" ")}`
+                        ).then((ok) =>
+                          ok
+                            ? toast.success("Skopiowano")
+                            : toast.error("Nie udało się skopiować")
+                        )
+                      }
+                      className="ml-auto rounded-lg bg-white/5 px-2 py-1 text-xs text-muted-foreground transition-all hover:bg-purple-500/10 hover:text-purple-400"
+                    >
+                      📋 Kopiuj
+                    </button>
                   </div>
-                  <p className="whitespace-pre-line text-sm text-foreground">
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-foreground">
                     {socialResult.instagram?.caption ?? ""}
                   </p>
-                  <p className="mt-3 text-xs text-purple-400">
+                  <p className="mt-3 text-xs text-purple-400/80">
                     {(socialResult.instagram?.hashtags ?? []).join(" ")}
                   </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void copyToClipboard(
-                          socialResult.instagram?.caption ?? ""
-                        ).then((ok) =>
-                          ok
-                            ? toast.success("Skopiowano caption")
-                            : toast.error("Nie udało się skopiować")
-                        )
-                      }
-                      className="rounded-lg bg-secondary/80 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
-                    >
-                      Kopiuj caption
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void copyToClipboard(
-                          (socialResult.instagram?.hashtags ?? []).join(" ")
-                        ).then((ok) =>
-                          ok
-                            ? toast.success("Skopiowano hashtagi")
-                            : toast.error("Nie udało się skopiować")
-                        )
-                      }
-                      className="rounded-lg bg-secondary/80 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
-                    >
-                      Kopiuj hashtagi
-                    </button>
-                  </div>
-                  {socialResult.instagram?.tip ? (
-                    <p className="mt-3 text-xs text-muted-foreground italic">
-                      💡 {socialResult.instagram.tip}
+                  <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-3">
+                    <p className="text-[10px] text-muted-foreground">
+                      ⏰ Najlepszy czas:{" "}
+                      {socialResult.instagram?.bestTime ?? "—"}
                     </p>
-                  ) : null}
+                    <p className="text-[10px] italic text-muted-foreground">
+                      💡 {socialResult.instagram?.tip ?? ""}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="rounded-2xl border border-blue-500/10 bg-linear-to-br from-blue-500/5 to-sky-500/5 p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/30 text-sm">
-                      📘
+                <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5">
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500 text-xs font-bold text-white">
+                      f
                     </div>
-                    <span className="font-semibold">Facebook</span>
-                  </div>
-                  <p className="whitespace-pre-line text-sm text-foreground">
-                    {socialResult.facebook?.post ?? ""}
-                  </p>
-                  <p className="mt-3 text-sm font-medium text-blue-400">
-                    {socialResult.facebook?.cta ?? ""}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="text-sm font-semibold">Facebook</span>
                     <button
                       type="button"
                       onClick={() =>
@@ -808,90 +764,69 @@ Produkcja: Polska`}
                           socialResult.facebook?.post ?? ""
                         ).then((ok) =>
                           ok
-                            ? toast.success("Skopiowano post")
+                            ? toast.success("Skopiowano")
                             : toast.error("Nie udało się skopiować")
                         )
                       }
-                      className="rounded-lg bg-secondary/80 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
+                      className="ml-auto rounded-lg bg-white/5 px-2 py-1 text-xs text-muted-foreground transition-all hover:bg-purple-500/10 hover:text-purple-400"
                     >
-                      Kopiuj post
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void copyToClipboard(
-                          socialResult.facebook?.cta ?? ""
-                        ).then((ok) =>
-                          ok
-                            ? toast.success("Skopiowano CTA")
-                            : toast.error("Nie udało się skopiować")
-                        )
-                      }
-                      className="rounded-lg bg-secondary/80 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
-                    >
-                      Kopiuj CTA
+                      📋 Kopiuj
                     </button>
                   </div>
-                  {socialResult.facebook?.tip ? (
-                    <p className="mt-3 text-xs text-muted-foreground italic">
-                      💡 {socialResult.facebook.tip}
+                  <p className="whitespace-pre-line text-sm text-foreground">
+                    {socialResult.facebook?.post ?? ""}
+                  </p>
+                  <div className="mt-3 border-t border-white/5 pt-3">
+                    <p className="text-xs text-blue-400">
+                      CTA: {socialResult.facebook?.cta ?? ""}
                     </p>
-                  ) : null}
+                    <p className="mt-1 text-[10px] italic text-muted-foreground">
+                      💡 {socialResult.facebook?.tip ?? ""}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="rounded-2xl border border-red-500/15 bg-card/40 p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-black text-sm font-bold text-white">
-                      ♪
+                <div className="rounded-2xl border border-white/10 bg-white/2 p-5">
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/20 bg-black text-xs font-bold text-white">
+                      TT
                     </div>
-                    <span className="font-semibold">TikTok</span>
+                    <span className="text-sm font-semibold">TikTok</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyToClipboard(
+                          `🎬 ${socialResult.tiktok?.hookLine ?? ""}\n\n${socialResult.tiktok?.scriptOutline ?? ""}\n\n${(socialResult.tiktok?.hashtags ?? []).join(" ")}`
+                        ).then((ok) =>
+                          ok
+                            ? toast.success("Skopiowano")
+                            : toast.error("Nie udało się skopiować")
+                        )
+                      }
+                      className="ml-auto rounded-lg bg-white/5 px-2 py-1 text-xs text-muted-foreground transition-all hover:bg-purple-500/10 hover:text-purple-400"
+                    >
+                      📋 Kopiuj
+                    </button>
                   </div>
-                  <p className="text-sm font-medium text-foreground">
-                    {socialResult.tiktok?.hookLine ?? ""}
-                  </p>
-                  <p className="mt-3 whitespace-pre-line text-xs text-muted-foreground">
-                    {socialResult.tiktok?.scriptOutline ?? ""}
-                  </p>
-                  <p className="mt-3 text-xs text-red-400/90">
+                  <div>
+                    <p className="text-xs font-semibold text-red-400">
+                      🎬 Hook (pierwsze zdanie):
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-foreground">
+                      {socialResult.tiktok?.hookLine ?? ""}
+                    </p>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-xs font-semibold text-muted-foreground">
+                      📋 Zarys scenariusza:
+                    </p>
+                    <p className="mt-1 whitespace-pre-line text-sm text-foreground/80">
+                      {socialResult.tiktok?.scriptOutline ?? ""}
+                    </p>
+                  </div>
+                  <p className="mt-3 text-xs text-muted-foreground">
                     {(socialResult.tiktok?.hashtags ?? []).join(" ")}
                   </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void copyToClipboard(
-                          socialResult.tiktok?.hookLine ?? ""
-                        ).then((ok) =>
-                          ok
-                            ? toast.success("Skopiowano hook")
-                            : toast.error("Nie udało się skopiować")
-                        )
-                      }
-                      className="rounded-lg bg-secondary/80 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
-                    >
-                      Kopiuj hook
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void copyToClipboard(
-                          (socialResult.tiktok?.hashtags ?? []).join(" ")
-                        ).then((ok) =>
-                          ok
-                            ? toast.success("Skopiowano hashtagi")
-                            : toast.error("Nie udało się skopiować")
-                        )
-                      }
-                      className="rounded-lg bg-secondary/80 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
-                    >
-                      Kopiuj hashtagi
-                    </button>
-                  </div>
-                  {socialResult.tiktok?.tip ? (
-                    <p className="mt-3 text-xs text-muted-foreground italic">
-                      💡 {socialResult.tiktok.tip}
-                    </p>
-                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -943,28 +878,51 @@ Produkcja: Polska`}
                 htmlFor="priceFeatures"
                 className="mb-2 block text-sm font-medium text-foreground"
               >
-                Cechy
+                Cechy / specyfikacja
               </Label>
               <textarea
                 id="priceFeatures"
                 value={features}
                 onChange={(e) => setFeatures(e.target.value)}
-                rows={6}
+                rows={4}
                 className="w-full resize-none rounded-lg border border-border/50 bg-secondary/50 px-3 py-2 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
+            </div>
+            <div>
+              <span className="mb-2 block text-sm font-medium text-foreground">
+                Platforma
+              </span>
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                {PLATFORMS.map((p) => {
+                  const active = platform === p.value
+                  return (
+                    <button
+                      key={p.value}
+                      type="button"
+                      onClick={() => setPlatform(p.value)}
+                      className={`rounded-xl p-3 text-center transition-all ${
+                        active
+                          ? "border-2 border-emerald-500 bg-emerald-500/10"
+                          : "border border-border/50 bg-card/30 hover:border-emerald-500/30"
+                      }`}
+                    >
+                      <div className="text-xl">{p.emoji}</div>
+                      <p className="mt-1 text-xs font-medium">{p.label}</p>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             <button
               type="button"
               onClick={() => void handleAnalyzePrice()}
-              disabled={
-                priceLoading || !productName.trim() || !features.trim()
-              }
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 font-semibold text-black transition-all hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={priceLoading || !productName.trim()}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-4 text-base font-semibold text-white transition-all hover:scale-[1.02] hover:bg-emerald-600 hover:shadow-lg hover:shadow-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
             >
               {priceLoading ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  Analizuję...
+                  Analizuję rynek...
                 </>
               ) : (
                 "💰 Analizuj cenę"
@@ -984,74 +942,97 @@ Produkcja: Polska`}
               <div className="flex flex-col items-center justify-center rounded-2xl border border-border/50 bg-card/30 py-16">
                 <Loader2 className="mb-3 h-10 w-10 animate-spin text-emerald-500" />
                 <p className="text-sm text-muted-foreground">
-                  Analizuję rynek i marże...
+                  Analizuję rynek...
                 </p>
               </div>
             ) : null}
             {priceResult ? (
-              <div className="space-y-6">
-                <div className="rounded-2xl border border-emerald-500/20 bg-card/50 p-8 text-center">
-                  <p className="text-sm text-muted-foreground">
+              <div className="mt-6 space-y-6">
+                <div className="gradient-border rounded-2xl p-8 text-center">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
                     Sugerowana cena sprzedaży
                   </p>
-                  <p className="mt-2 text-5xl font-bold text-emerald-400">
+                  <p className="mt-3 text-5xl font-bold text-emerald-400">
                     {priceResult.suggestedPrice} zł
                   </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Confidence: {priceResult.confidence}%
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="rounded-xl border border-red-500/10 bg-red-500/5 p-4 text-center">
-                    <p className="text-xs text-red-400">Minimalna</p>
-                    <p className="text-xl font-bold text-foreground">
-                      {priceResult.minPrice} zł
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      Ryzyko niskiej marży
+                  <div className="mt-2 flex items-center justify-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                    <p className="text-sm text-muted-foreground">
+                      Pewność: {priceResult.confidence}%
                     </p>
                   </div>
-                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-center ring-2 ring-emerald-500/30">
-                    <p className="text-xs text-emerald-400">Optymalna</p>
-                    <p className="text-xl font-bold text-emerald-400">
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-red-500/10 bg-red-500/5 p-4 text-center">
+                    <p className="text-[10px] uppercase tracking-wide text-red-400">
+                      Minimalna
+                    </p>
+                    <p className="mt-1 text-xl font-bold">
+                      {priceResult.minPrice} zł
+                    </p>
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      Niska marża
+                    </p>
+                  </div>
+                  <div className="rounded-xl border-2 border-emerald-500/30 bg-emerald-500/5 p-4 text-center ring-1 ring-emerald-500/20">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-400">
+                      ★ Optymalna
+                    </p>
+                    <p className="mt-1 text-xl font-bold text-emerald-400">
                       {priceResult.suggestedPrice} zł
                     </p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="mt-1 text-[10px] text-emerald-400/60">
                       Najlepsza marża
                     </p>
                   </div>
                   <div className="rounded-xl border border-yellow-500/10 bg-yellow-500/5 p-4 text-center">
-                    <p className="text-xs text-yellow-400">Maksymalna</p>
-                    <p className="text-xl font-bold text-foreground">
+                    <p className="text-[10px] uppercase tracking-wide text-yellow-400">
+                      Maksymalna
+                    </p>
+                    <p className="mt-1 text-xl font-bold">
                       {priceResult.maxPrice} zł
                     </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      Premium positioning
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      Premium
                     </p>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-white/5 bg-card/30 p-4">
-                  <p className="text-sm text-foreground">
+                <div className="rounded-xl border border-white/5 bg-card/30 p-5">
+                  <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
+                    Analiza AI
+                  </p>
+                  <p className="text-sm leading-relaxed text-foreground/80">
                     {priceResult.reasoning}
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  {(priceResult.tips ?? []).map((tip, i) => (
-                    <div key={i} className="flex items-start gap-2 text-sm">
-                      <span className="text-emerald-400">💡</span>
-                      <span className="text-muted-foreground">{tip}</span>
-                    </div>
-                  ))}
+                  <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
+                    Wskazówki
+                  </p>
+                  {(priceResult.tips ?? []).map(
+                    (tip: string, i: number) => (
+                      <div
+                        key={i}
+                        className="flex items-start gap-2 rounded-xl bg-white/2 p-3"
+                      >
+                        <span className="text-sm text-emerald-400">💡</span>
+                        <p className="text-sm text-foreground/70">{tip}</p>
+                      </div>
+                    )
+                  )}
                 </div>
 
                 {priceResult.seasonalNote ? (
-                  <div className="rounded-lg border border-yellow-500/10 bg-yellow-500/5 p-3">
-                    <p className="text-xs text-yellow-400">
-                      📅 {priceResult.seasonalNote}
-                    </p>
+                  <div className="rounded-xl border border-yellow-500/10 bg-yellow-500/5 p-4">
+                    <div className="flex items-center gap-2">
+                      <span>📅</span>
+                      <p className="text-sm text-yellow-400">
+                        {priceResult.seasonalNote}
+                      </p>
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -1107,18 +1088,18 @@ Produkcja: Polska`}
 
       {activeTab === "url" ? (
         <div className="rounded-2xl border border-border/50 bg-card/30 py-16 text-center">
-          {plan !== "pro" ? (
+          {!isProOrScale(plan) ? (
             <>
               <p className="mb-3 text-3xl">🔒</p>
               <p className="font-medium text-foreground">Analiza konkurencji</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Dostępne w planie Pro (249 zł/mies)
+                Dostępne w planie Pro lub Scale
               </p>
               <Link
                 href="/dashboard/settings"
                 className="mt-4 inline-flex items-center rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-emerald-600"
               >
-                Przejdź na Pro →
+                Przejdź na wyższy plan →
               </Link>
             </>
           ) : (

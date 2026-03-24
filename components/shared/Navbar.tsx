@@ -14,6 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 
+import { ListingoBoltMark } from "@/components/shared/ListingoBoltMark"
 import { cn } from "@/lib/utils"
 
 const NAV_LINKS = [
@@ -71,6 +72,12 @@ export function Navbar() {
           : "border-transparent bg-transparent"
       )}
     >
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-4 focus:z-[60] focus:rounded-lg focus:bg-emerald-500 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-black focus:shadow-lg"
+      >
+        Przejdź do treści
+      </a>
       <div className="relative mx-auto flex h-full max-w-7xl items-center justify-between px-4">
         <LogoLink />
 

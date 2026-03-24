@@ -7,12 +7,19 @@ import { useState } from "react"
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { useUser } from "@/hooks/useUser"
+import { planLabel } from "@/lib/plans"
 import type { Profile } from "@/lib/types"
 import type { User } from "@supabase/supabase-js"
 
 const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard", emoji: "📊" },
   { href: "/dashboard/generate", label: "AI Sales Hub", emoji: "⚡" },
+  {
+    href: "/dashboard/photo-studio",
+    label: "Photo Studio",
+    emoji: "📸",
+    newBadge: true,
+  },
   { href: "/dashboard/descriptions", label: "Moje opisy", emoji: "📋" },
   { href: "/dashboard/brand", label: "Brand Voice", emoji: "🎨" },
   { href: "/dashboard/settings", label: "Ustawienia", emoji: "⚙️" },
@@ -80,12 +87,17 @@ function SidebarBody({
               onClick={onLinkClick}
               className={
                 active
-                  ? "flex items-center gap-3 rounded-xl border-l-2 border-emerald-500 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-400"
-                  : "flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm text-muted-foreground transition-all hover:bg-secondary/50 hover:text-foreground"
+                  ? "flex w-full items-center gap-3 rounded-xl border-l-2 border-emerald-500 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-400"
+                  : "flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm text-muted-foreground transition-all hover:bg-secondary/50 hover:text-foreground"
               }
             >
               <span aria-hidden>{item.emoji}</span>
               {item.label}
+              {"newBadge" in item && item.newBadge ? (
+                <span className="ml-auto rounded-full border border-orange-500/30 bg-orange-500/20 px-1.5 py-0.5 text-[10px] text-orange-400">
+                  NOWE
+                </span>
+              ) : null}
             </Link>
           )
         })}
@@ -101,14 +113,12 @@ function SidebarBody({
                   ? "bg-secondary text-foreground"
                   : plan === "starter"
                     ? "bg-emerald-500/20 text-emerald-400"
-                    : "bg-purple-500/20 text-purple-400"
+                    : plan === "scale"
+                      ? "bg-amber-500/20 text-amber-400"
+                      : "bg-purple-500/20 text-purple-400"
               }`}
             >
-              {plan === "free"
-                ? "Free"
-                : plan === "starter"
-                  ? "Starter"
-                  : "Pro"}
+              {planLabel(plan)}
             </span>
           </div>
           <div className="space-y-1">
@@ -127,7 +137,7 @@ function SidebarBody({
               />
             </div>
           </div>
-          {plan !== "pro" ? (
+          {plan !== "scale" ? (
             <Link
               href="/dashboard/settings"
               onClick={onLinkClick}

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { PLATFORMS, TONES } from "@/lib/constants"
 import { createClient } from "@/lib/supabase/client"
 import { useUser } from "@/hooks/useUser"
+import { planLabel } from "@/lib/plans"
 import { formatDate, PLANS } from "@/lib/utils"
 
 function getInitials(fullName: string | null | undefined): string {
@@ -272,14 +273,12 @@ export default function SettingsPage() {
                       ? "text-foreground"
                       : plan === "starter"
                         ? "text-emerald-400"
-                        : "text-purple-400"
+                        : plan === "scale"
+                          ? "text-amber-400"
+                          : "text-purple-400"
                   }`}
                 >
-                  {plan === "free"
-                    ? "Free"
-                    : plan === "starter"
-                      ? "Starter"
-                      : "Pro"}
+                  {planLabel(plan)}
                 </p>
               </div>
               <span
@@ -288,7 +287,9 @@ export default function SettingsPage() {
                     ? "bg-secondary text-foreground"
                     : plan === "starter"
                       ? "bg-emerald-500/20 text-emerald-400"
-                      : "bg-purple-500/20 text-purple-400"
+                      : plan === "scale"
+                        ? "bg-amber-500/20 text-amber-400"
+                        : "bg-purple-500/20 text-purple-400"
                 }`}
               >
                 {plan}
@@ -321,7 +322,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div
               className={`rounded-2xl border border-border/50 bg-card/30 p-5 ${
                 plan === "free" ? "ring-2 ring-emerald-500" : ""
@@ -379,7 +380,7 @@ export default function SettingsPage() {
                 </button>
               ) : (
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Masz wyższy plan (Pro)
+                  Masz wyższy plan
                 </p>
               )}
             </div>
@@ -402,6 +403,10 @@ export default function SettingsPage() {
               </ul>
               {plan === "pro" ? (
                 <p className="mt-3 text-xs text-purple-400">Aktualny plan ✓</p>
+              ) : plan === "scale" ? (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Masz wyższy plan (Scale)
+                </p>
               ) : (
                 <button
                   type="button"
@@ -409,6 +414,35 @@ export default function SettingsPage() {
                   className="mt-3 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-400 opacity-90"
                 >
                   Upgrade do Pro → (wkrótce)
+                </button>
+              )}
+            </div>
+
+            <div
+              className={`rounded-2xl border border-border/50 bg-card/30 p-5 ${
+                plan === "scale"
+                  ? "border-amber-500/40 ring-2 ring-amber-500/30"
+                  : ""
+              }`}
+            >
+              <p className="font-medium text-foreground">{PLANS.scale.name}</p>
+              <p className="mt-1 text-2xl font-bold text-foreground">
+                {PLANS.scale.price} zł/mies
+              </p>
+              <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+                <li>✓ Wszystko z Pro</li>
+                <li>✓ Photo Studio AI (sceny)</li>
+                <li>✓ Priorytet i skala</li>
+              </ul>
+              {plan === "scale" ? (
+                <p className="mt-3 text-xs text-amber-400">Aktualny plan ✓</p>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-400 opacity-90"
+                >
+                  Upgrade do Scale → (wkrótce)
                 </button>
               )}
             </div>

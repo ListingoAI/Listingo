@@ -1,6 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
+import { Play } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 
@@ -29,6 +30,41 @@ const AVATAR_COLORS = [
   "#8B5CF6",
   "#F59E0B",
   "#EF4444",
+] as const
+
+/** Szybkie „pill” pod nagłówkiem — spójne z kanałami w opisie (Allegro, Shopify, WooCommerce). */
+const HERO_TRUST_PILLS = [
+  {
+    title: "Allegro · Shopify · WooCommerce",
+    titleMobile: "Allegro · Shopify · Woo",
+    sub: "Formaty pod Twoje kanały",
+    icon: (
+      <svg viewBox="0 0 20 20" fill="none" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-emerald-400" aria-hidden>
+        <path stroke="currentColor" d="M3 7h14M3 7v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7M3 7l2-3h10l2 3" />
+        <path stroke="currentColor" d="M10 10v4" />
+      </svg>
+    ),
+  },
+  {
+    title: "Jedno konto, wiele narzędzi",
+    sub: "Opis, social, cena, zdjęcia",
+    icon: (
+      <svg viewBox="0 0 20 20" fill="none" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-emerald-400" aria-hidden>
+        <path stroke="currentColor" d="M10 3v4M10 13v4M3 10h4M13 10h4" />
+        <circle stroke="currentColor" cx="10" cy="10" r="2.5" />
+      </svg>
+    ),
+  },
+  {
+    title: "Quality score wbudowany",
+    sub: "SEO i czytelność na bieżąco",
+    icon: (
+      <svg viewBox="0 0 20 20" fill="none" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-emerald-400" aria-hidden>
+        <circle stroke="currentColor" cx="10" cy="10" r="7" />
+        <path stroke="currentColor" d="M6.5 10l2.2 2.2L13.5 7.5" />
+      </svg>
+    ),
+  },
 ] as const
 
 export function HeroSection() {
@@ -125,7 +161,7 @@ export function HeroSection() {
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
               </span>
               <span className="text-sm font-medium text-emerald-400">
-                AI Sales Hub — Nowa era e-commerce
+                Hub sprzedażowy AI dla e-commerce
               </span>
             </div>
 
@@ -141,10 +177,35 @@ export function HeroSection() {
             </h1>
 
             <p className="mt-6 max-w-lg text-lg leading-relaxed text-muted-foreground/80">
-              Opisy, posty social media, emaile, optymalne ceny — jeden AI
-              asystent zastępuje cały zespół marketingu. Dla sprzedawców Allegro,
-              Shopify i WooCommerce.
+              Opisy, posty social media, emaile, optymalne ceny — jeden asystent AI
+              zamiast skakania między narzędziami. Oszczędzasz godziny pracy jak przy
+              małym zespole marketingu. Dla sprzedawców na Allegro, Shopify i
+              WooCommerce.
             </p>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              {HERO_TRUST_PILLS.map((pill) => (
+                <div
+                  key={pill.title}
+                  className="inline-flex max-w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/4 px-3 py-2 backdrop-blur-sm"
+                >
+                  {pill.icon}
+                  <div className="min-w-0 text-left">
+                    <p className="text-[11px] font-semibold leading-tight text-foreground/90">
+                      <span className="sm:hidden">
+                        {"titleMobile" in pill && pill.titleMobile
+                          ? pill.titleMobile
+                          : pill.title}
+                      </span>
+                      <span className="hidden sm:inline">{pill.title}</span>
+                    </p>
+                    <p className="text-[10px] leading-tight text-muted-foreground/55">
+                      {pill.sub}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
 
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <Link
@@ -159,6 +220,7 @@ export function HeroSection() {
               <Link
                 href="#jak-dziala"
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/3 px-8 py-4 font-medium text-foreground/80 backdrop-blur-sm transition-all hover:border-emerald-500/30 hover:bg-white/6 hover:text-foreground"
+                aria-label="Zobacz demo — przejdź do sekcji Jak działa"
               >
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/20 text-sm text-emerald-400">
                   ▶
@@ -168,7 +230,7 @@ export function HeroSection() {
             </div>
 
             <div className="mt-8 flex items-center gap-6">
-              <div className="flex -space-x-3">
+              <div className="flex -space-x-3" aria-hidden>
                 {AVATAR_INITIALS.map((initials, i) => (
                   <div
                     key={initials}
@@ -183,18 +245,12 @@ export function HeroSection() {
                 ))}
               </div>
               <div>
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <span key={s} className="text-sm text-yellow-400">
-                      ★
-                    </span>
-                  ))}
-                  <span className="text-sm font-semibold text-foreground">
-                    4.9
-                  </span>
-                </div>
+                <p className="text-sm font-medium text-foreground">
+                  Wczesny dostęp
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  Dołącz do 500+ sprzedawców
+                  Zbieramy opinie od pierwszych sklepów — przetestuj za darmo i
+                  powiedz, czego Ci brakuje.
                 </p>
               </div>
             </div>
@@ -246,18 +302,16 @@ export function HeroSection() {
               </div>
 
               <div className="space-y-4 p-5">
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-1">
-                    <span className="rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-400">
-                      📝 Opis
-                    </span>
-                    <span className="rounded-lg bg-white/5 px-3 py-1.5 text-xs text-muted-foreground/60">
-                      📱 Social
-                    </span>
-                    <span className="rounded-lg bg-white/5 px-3 py-1.5 text-xs text-muted-foreground/60">
-                      💰 Cena
-                    </span>
-                  </div>
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className="rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-400">
+                    Opis
+                  </span>
+                  <span className="rounded-lg bg-white/5 px-3 py-1.5 text-xs text-muted-foreground/60">
+                    Social
+                  </span>
+                  <span className="rounded-lg bg-white/5 px-3 py-1.5 text-xs text-muted-foreground/60">
+                    Cena
+                  </span>
                 </div>
 
                 <div className="rounded-xl border border-white/5 bg-white/3 p-4">
@@ -279,7 +333,7 @@ export function HeroSection() {
                     <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
                       <div className="mb-3 flex items-center justify-between">
                         <span className="text-xs font-medium text-emerald-400">
-                          ✨ Wygenerowano
+                          Wygenerowano
                         </span>
                         <div className="flex items-center gap-1.5">
                           <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500">
@@ -337,9 +391,19 @@ export function HeroSection() {
           className="relative mt-20"
         >
           <div className="text-center">
-            <p className="mb-6 text-xs tracking-[0.2em] text-muted-foreground/40 uppercase">
-              Zintegrowany z
-            </p>
+            <div className="mb-8 flex items-center justify-center gap-3 sm:gap-4">
+              <span
+                className="h-px w-10 bg-linear-to-r from-transparent to-border/80 sm:w-16"
+                aria-hidden
+              />
+              <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground/45 uppercase">
+                Zintegrowany z
+              </p>
+              <span
+                className="h-px w-10 bg-linear-to-l from-transparent to-border/80 sm:w-16"
+                aria-hidden
+              />
+            </div>
             <p className="sr-only">
               Logotypy partnerów: Allegro, Shopify, WooCommerce, OLX, Amazon.
             </p>

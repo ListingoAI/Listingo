@@ -4,7 +4,7 @@ export interface Profile {
   email: string
   full_name: string | null
   avatar_url: string | null
-  plan: 'free' | 'starter' | 'pro'
+  plan: 'free' | 'starter' | 'pro' | 'scale'
   credits_used: number
   credits_limit: number
   credits_reset_at: string

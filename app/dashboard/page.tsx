@@ -23,6 +23,7 @@ import { useUser } from "@/hooks/useUser"
 import { PLATFORMS } from "@/lib/constants"
 import { createClient } from "@/lib/supabase/client"
 import type { Description } from "@/lib/types"
+import { isProOrScale, planLabel as planLabelFromPlans } from "@/lib/plans"
 import { cn, formatDate } from "@/lib/utils"
 
 function platformEmoji(platform: string): string {
@@ -325,8 +326,7 @@ export default function DashboardPage() {
   const firstName =
     profile?.full_name?.split(" ").filter(Boolean)[0] ?? "Użytkownik"
 
-  const planLabel =
-    plan === "free" ? "Free" : plan === "starter" ? "Starter" : "Pro"
+  const planLabel = planLabelFromPlans(plan)
 
   if (userLoading || !user) {
     return null
@@ -532,14 +532,22 @@ export default function DashboardPage() {
                   👑
                 </div>
                 <PlanTierSpark
-                  plan={plan === "starter" ? "starter" : plan === "pro" ? "pro" : "free"}
+                  plan={
+                    plan === "scale"
+                      ? "scale"
+                      : plan === "starter"
+                        ? "starter"
+                        : plan === "pro"
+                          ? "pro"
+                          : "free"
+                  }
                 />
               </div>
               <p className="text-2xl font-bold capitalize text-foreground">
                 {planLabel}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">Twój plan</p>
-              {plan !== "pro" ? (
+              {plan !== "scale" ? (
                 <p className="mt-2 text-xs">
                   <Link
                     href="/dashboard/settings"
@@ -618,7 +626,7 @@ export default function DashboardPage() {
                 style={{ animationDelay: "0.48s" }}
               >
                 <SpotlightSurface className="premium-card group relative h-full overflow-hidden rounded-2xl border border-border/50 bg-card/30 p-6">
-                  {plan !== "pro" ? (
+                  {!isProOrScale(plan) ? (
                     <span className="absolute top-3 right-3 z-10 rounded-full border border-purple-500/30 bg-purple-500/20 px-2 py-0.5 text-xs text-purple-400">
                       Pro
                     </span>

@@ -1,6 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
+import Link from "next/link"
 
 import { fadeSlideUp } from "@/lib/landing-motion"
 import {
@@ -65,7 +66,14 @@ export function FAQSection() {
             Często zadawane pytania
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Nie znalazłeś odpowiedzi? Napisz do nas.
+            Nie znalazłeś odpowiedzi?{" "}
+            <Link
+              href="/register"
+              className="font-medium text-emerald-400 underline-offset-4 hover:underline"
+            >
+              Załóż darmowe konto
+            </Link>{" "}
+            i wypróbuj — albo napisz do nas z poziomu aplikacji po zalogowaniu.
           </p>
         </motion.div>
 

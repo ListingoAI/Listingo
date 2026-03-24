@@ -246,12 +246,19 @@ export function PlanTierSpark({
   plan,
   className,
 }: {
-  plan: "free" | "starter" | "pro"
+  plan: "free" | "starter" | "pro" | "scale"
   className?: string
 }) {
   const active =
-    plan === "free" ? 1 : plan === "starter" ? 2 : 3
-  const w = 108
+    plan === "free"
+      ? 1
+      : plan === "starter"
+        ? 2
+        : plan === "pro"
+          ? 3
+          : 4
+  const tiers = 4
+  const w = 138
   const h = 44
   return (
     <svg
@@ -260,16 +267,16 @@ export function PlanTierSpark({
       viewBox={`0 0 ${w} ${h}`}
       className={cn("shrink-0", className)}
       role="img"
-      aria-label={`Poziom planu: ${active} z 3`}
+      aria-label={`Poziom planu: ${active} z ${tiers}`}
     >
       <title>Poziom planu</title>
-      {[0, 1, 2].map((i) => (
+      {[0, 1, 2, 3].map((i) => (
         <rect
           key={i}
-          x={10 + i * 32}
-          y={h / 2 - (8 + i * 6) / 2}
-          width={26}
-          height={8 + i * 6}
+          x={8 + i * 28}
+          y={h / 2 - (8 + i * 5) / 2}
+          width={22}
+          height={8 + i * 5}
           rx={4}
           className={
             i < active

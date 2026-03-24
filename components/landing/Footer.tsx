@@ -1,5 +1,7 @@
 import Link from "next/link"
 
+import { ListingoBoltMark } from "@/components/shared/ListingoBoltMark"
+
 function IconX({ className }: { className?: string }) {
   return (
     <svg
@@ -73,9 +75,7 @@ export function Footer() {
               href="/"
               className="inline-flex items-center gap-2 transition-opacity hover:opacity-80"
             >
-              <span className="text-2xl" aria-hidden>
-                ⚡
-              </span>
+              <ListingoBoltMark className="h-7 w-7 shrink-0 text-emerald-400" />
               <span className="bg-linear-to-r from-emerald-400 to-emerald-600 bg-clip-text text-xl font-bold text-transparent">
                 Listingo
               </span>

@@ -57,4 +57,10 @@ export const PLANS = {
     price: 249,
     description: 'Dla poważnych biznesów',
   },
+  scale: {
+    name: 'Scale',
+    credits: 999999,
+    price: 499,
+    description: 'Dla zespołów i dużej skali',
+  },
 } as const

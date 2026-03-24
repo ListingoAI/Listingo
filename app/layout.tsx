@@ -9,13 +9,18 @@ const inter = Inter({
   display: 'swap',
 })
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://listingo.pl'
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: 'Listingo — Opisy produktów w 30 sekund | AI dla e-commerce',
-  description: 'Generuj profesjonalne opisy produktów pod Allegro, Shopify i WooCommerce za pomocą AI. Zoptymalizowane pod SEO. Po polsku. Oszczędź 90% czasu.',
+  description:
+    'Jeden asystent AI pod opisy, social media, ceny i zdjęcia — Allegro, Shopify, WooCommerce. SEO i quality score. Po polsku. Zacznij za darmo.',
   keywords: 'opisy produktów, AI, Allegro, e-commerce, SEO, generator opisów, sztuczna inteligencja, Shopify, WooCommerce',
   openGraph: {
     title: 'Listingo — Opisy produktów w 30 sekund',
-    description: 'AI pisze opisy produktów. Ty sprzedajesz więcej. Zoptymalizowane pod Allegro, Shopify i WooCommerce.',
+    description:
+      'Jeden asystent AI zamiast skakania między narzędziami. Opisy, social, ceny — Allegro, Shopify, WooCommerce.',
     type: 'website',
     locale: 'pl_PL',
     siteName: 'Listingo',
@@ -23,7 +28,8 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Listingo — AI opisy produktów',
-    description: 'Generuj opisy produktów w 30 sekund',
+    description:
+      'AI pod całą sprzedaż online: opisy, social, ceny. Allegro, Shopify, WooCommerce.',
   },
   robots: {
     index: true,

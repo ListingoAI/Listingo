@@ -28,14 +28,22 @@ export function CTASection() {
           Dołącz do sprzedawców, którzy oszczędzają godziny każdego tygodnia i
           sprzedają więcej dzięki AI.
         </p>
-        <Link
-          href="/register"
-          className="cta-primary-shimmer mt-8 inline-block rounded-xl bg-emerald-500 px-8 py-4 text-lg font-semibold text-black shadow-lg shadow-emerald-500/25 transition-all hover:scale-105 hover:bg-emerald-400"
-        >
-          <span>Zacznij za darmo — 5 opisów gratis →</span>
-        </Link>
+        <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+          <Link
+            href="/register"
+            className="cta-primary-shimmer inline-block rounded-xl bg-emerald-500 px-8 py-4 text-lg font-semibold text-black shadow-lg shadow-emerald-500/25 transition-all hover:scale-105 hover:bg-emerald-400"
+          >
+            <span>Zacznij za darmo — 5 opisów gratis →</span>
+          </Link>
+          <Link
+            href="#cennik"
+            className="text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-emerald-400 hover:underline"
+          >
+            Zobacz cennik
+          </Link>
+        </div>
         <p className="mt-4 text-sm text-muted-foreground">
-          Konfiguracja w 30 sekund. Bez karty kredytowej.
+          Konfiguracja w ok. 2 minuty. Bez karty kredytowej. Anuluj w każdej chwili.
         </p>
       </motion.div>
     </section>

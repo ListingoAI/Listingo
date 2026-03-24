@@ -34,6 +34,7 @@ body {
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 5rem; /* stały navbar — kotwice #funkcje, #cennik itd. */
 }
 
 /* scrollbar */
