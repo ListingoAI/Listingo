@@ -21,6 +21,12 @@ const NAV_LINKS = [
     emoji: "📸",
     newBadge: true,
   },
+  {
+    href: "/dashboard/video-studio",
+    label: "Video Studio",
+    emoji: "🎬",
+    newBadge: true,
+  },
   { href: "/dashboard/descriptions", label: "Moje opisy", emoji: "📋" },
   { href: "/dashboard/brand", label: "Brand Voice", emoji: "🎨" },
   { href: "/dashboard/settings", label: "Ustawienia", emoji: "⚙️" },

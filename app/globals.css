@@ -327,3 +327,25 @@ html {
   border-right: 1px solid hsl(217.2 32.6% 17.5%);
   border-bottom: 1px solid hsl(217.2 32.6% 17.5%);
 }
+
+/* Partner logos — infinite horizontal marquee (hero) */
+@keyframes integration-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.integration-logos-marquee-track {
+  width: max-content;
+  animation: integration-marquee 42s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .integration-logos-marquee-track {
+    animation: none;
+    transform: none;
+  }
+}
