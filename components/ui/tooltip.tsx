@@ -30,12 +30,18 @@ function TooltipTrigger({
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
 }
 
+type TooltipContentProps = React.ComponentProps<typeof TooltipPrimitive.Content> & {
+  /** Gdy nadpisujesz tło (np. ciemny tooltip), ustaw ten sam kolor co tło — strzałka zgra się wizualnie */
+  arrowClassName?: string
+}
+
 function TooltipContent({
   className,
   sideOffset = 0,
   children,
+  arrowClassName,
   ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+}: TooltipContentProps) {
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
@@ -48,7 +54,12 @@ function TooltipContent({
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground" />
+        <TooltipPrimitive.Arrow
+          className={cn(
+            "z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]",
+            arrowClassName ?? "bg-foreground fill-foreground"
+          )}
+        />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   )

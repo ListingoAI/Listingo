@@ -100,6 +100,7 @@ export default function RegisterPage() {
 
       if (data.user) {
         router.push("/onboarding")
+        router.refresh()
       }
     } catch {
       setError("Wystąpił nieoczekiwany błąd. Spróbuj ponownie.")

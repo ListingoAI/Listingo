@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import toast from "react-hot-toast"
 
 import DescriptionResult from "@/components/generator/DescriptionResult"
+import { formatCategoryFieldForDisplay } from "@/lib/allegro/category-selection"
 import { createClient } from "@/lib/supabase/client"
 import type { Description, GenerateResponse, QualityTip } from "@/lib/types"
 import { formatDate } from "@/lib/utils"
@@ -232,7 +233,7 @@ export default function DescriptionDetailPage() {
             <p>
               <span className="text-muted-foreground">Kategoria: </span>
               <span className="text-foreground">
-                {description.category || "Nie podano"}
+                {formatCategoryFieldForDisplay(description.category)}
               </span>
             </p>
             <p>

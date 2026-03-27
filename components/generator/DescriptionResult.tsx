@@ -1,10 +1,11 @@
 "use client"
 
-import { FileText } from "lucide-react"
+import { FileText, Sparkles } from "lucide-react"
 import { useState } from "react"
 import toast from "react-hot-toast"
 
 import { exportToPDF } from "@/components/generator/ExportPDF"
+import { countWordsFromHtml } from "@/lib/generation/count-words-html"
 import { copyToClipboard } from "@/lib/utils"
 import type { GenerateResponse, QualityTip } from "@/lib/types"
 
@@ -79,12 +80,20 @@ export interface DescriptionResultProps {
   productName?: string
   /** Rodzic ustawia np. setResult(null) — wymagane do pełnego „Generuj ponownie”. */
   onRegenerate?: () => void
+  /** Druga generacja z poprzednim wynikiem + instrukcja z Quality Score (1 kredyt). */
+  onRefineQuality?: () => void | Promise<void>
+  /** Blokuje przyciski podczas generacji */
+  loading?: boolean
+  creditsRemaining?: number
 }
 
 export function DescriptionResult({
   result,
   productName,
   onRegenerate,
+  onRefineQuality,
+  loading = false,
+  creditsRemaining,
 }: DescriptionResultProps) {
   const [viewMode, setViewMode] = useState<"preview" | "html">("preview")
   const [copiedSection, setCopiedSection] = useState<string | null>(null)
@@ -116,7 +125,29 @@ export function DescriptionResult({
   const metaDescription = result.metaDescription ?? ""
   const tags = Array.isArray(result.tags) ? result.tags : []
 
+  const titleMax = result.platformLimits?.titleMaxChars ?? 70
+  const shortMax = result.platformLimits?.shortDescMax ?? 250
+  const metaMax = result.platformLimits?.metaDescMax ?? 160
+  const longMinWords = result.platformLimits?.longDescMinWords ?? 150
+  const longWordCount = countWordsFromHtml(longDescription)
+  const shortDescriptionLabel =
+    result.platformLimits?.slug === "amazon" ? "Bullet Points" : "Opis krótki"
+  const tagsLabel = result.platformLimits?.slug === "vinted" ? "Hashtagi" : "Tagi SEO"
+
   const tips = normalizeTips(result.qualityTips)
+  const hasNegativeTips = tips.some(
+    (t) => t.type === "warning" || t.type === "error"
+  )
+  /** Uwzględnij też lukę słów (np. sanitize dodał ostrzeżenie tylko po stronie serwera w innym przebiegu). */
+  const belowLongMin = longWordCount < longMinWords
+  const hasRoomToImprove =
+    hasNegativeTips ||
+    belowLongMin ||
+    (result.qualityScore ?? 0) < 100
+  const canRefine =
+    typeof onRefineQuality === "function" &&
+    !loading &&
+    (creditsRemaining === undefined || creditsRemaining > 0)
 
   function handleRegenerate() {
     window.scrollTo({ top: 0, behavior: "smooth" })
@@ -178,8 +209,32 @@ export function DescriptionResult({
           </div>
         </div>
 
-        {tips.length > 0 ? (
+        {tips.length > 0 || (canRefine && hasRoomToImprove) ? (
           <div className="mt-4 space-y-2">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/90">
+                {tips.length > 0 ? "Szczegóły oceny" : "Możliwa poprawa"}
+              </p>
+              {canRefine && hasRoomToImprove ? (
+                <button
+                  type="button"
+                  onClick={() => void onRefineQuality?.()}
+                  disabled={loading}
+                  title="Każde użycie pobiera 1 kredyt — jak kolejne pełne generowanie opisu."
+                  className="inline-flex max-w-[min(100%,220px)] shrink-0 items-center gap-2 rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-3 py-2 text-left transition-all hover:border-cyan-400/50 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-cyan-200" aria-hidden />
+                  <span className="flex min-w-0 flex-col gap-0.5 leading-tight">
+                    <span className="text-[11px] font-medium text-cyan-100">
+                      Ulepsz AI wg wskazówek
+                    </span>
+                    <span className="text-[10px] font-semibold text-amber-200/95">
+                      1 kredyt za każde użycie
+                    </span>
+                  </span>
+                </button>
+              ) : null}
+            </div>
             {tips.map((tip, i) => (
               <div
                 key={i}
@@ -208,6 +263,20 @@ export function DescriptionResult({
                 </span>
               </div>
             ))}
+            {canRefine && hasRoomToImprove ? (
+              <p className="text-[10px] leading-relaxed text-muted-foreground/80">
+                <span className="font-medium text-foreground/90">
+                  Płatność: 1 kredyt za każde kliknięcie
+                </span>{" "}
+                (tak samo jak „Generuj opis”). Model dostaje poprzedni JSON + listę ostrzeżeń i sukcesów —
+                stara się naprawić luki (np. długość opisu), nie psując tego, co już jest OK.
+              </p>
+            ) : null}
+            {!canRefine && onRefineQuality && creditsRemaining === 0 ? (
+              <p className="text-[10px] text-amber-400/90">
+                Brak kredytów — ulepszanie AI niedostępne do odnowienia limitu.
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -220,11 +289,11 @@ export function DescriptionResult({
           <div className="flex items-center gap-2">
             <span
               className={
-                seoTitle.length <= 70 ? "text-xs text-emerald-400" : "text-xs text-red-400"
+                seoTitle.length <= titleMax ? "text-xs text-emerald-400" : "text-xs text-red-400"
               }
             >
-              {seoTitle.length}/70
-              {seoTitle.length > 70 ? " ⚠️" : ""}
+              {seoTitle.length}/{titleMax}
+              {seoTitle.length > titleMax ? " ⚠️" : ""}
             </span>
             <button
               type="button"
@@ -236,20 +305,55 @@ export function DescriptionResult({
           </div>
         </div>
         <p className="text-base font-semibold text-foreground">{seoTitle}</p>
+        {result.platformLimits?.slug === "allegro" ? (
+          <p className="mt-3 rounded-lg border border-cyan-500/10 bg-cyan-500/5 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+            Allegro: w wyszukiwarce liczą się tytuł oferty i parametry (filtry). Opis HTML służy konwersji i SEO w Google — nie zastępuje parametrów w formularzu wystawiania.
+          </p>
+        ) : null}
+        {result.platformLimits?.slug === "amazon" ? (
+          <p className="mt-3 rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+            Amazon: tytuł (początek, ok. 70–80 zn. widoczne w apce) i exact match frazy; Backend ~249 bajtów UTF-8 (nie znaki — polskie ogonki 2 bajty; nadmiar może wyzerować całe pole; słowa spacją, bez przecinków). „Opis krótki” = styl Bullet Points. A+: tekst na grafice nie indeksuje się jak opis; Alt Text w modułach bywa indeksowany.
+          </p>
+        ) : null}
+        {result.platformLimits?.slug === "shoper" ? (
+          <p className="mt-3 rounded-lg border border-violet-500/10 bg-violet-500/5 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+            Shoper: tytuł w wyniku to propozycja pod SEO (~60–70 zn.); pełna nazwa produktu w panelu może mieć do 255 zn. Opis krótki — plain text (bez HTML), bez powielania zdań z opisu długiego. Ceneo domyślnie bierze skrót; uzupełnij atrybuty (m.in. EAN, marka) w sklepie pod feedy.
+          </p>
+        ) : null}
+        {result.platformLimits?.slug === "woocommerce" ? (
+          <p className="mt-3 rounded-lg border border-purple-500/10 bg-purple-500/5 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+            WooCommerce / WordPress: opis długi to HTML gotowy do wklejenia (h2, p, listy). Listy:{" "}
+            <code className="rounded bg-white/5 px-1">&lt;ul class=&quot;wp-block-list&quot;&gt;</code> +{" "}
+            <code className="rounded bg-white/5 px-1">&lt;li&gt;</code> (Gutenberg) lub zwykłe{" "}
+            <code className="rounded bg-white/5 px-1">&lt;ul&gt;&lt;li&gt;</code>. Nie wklejaj shortcodes wtyczek, jeśli ich nie używasz.
+          </p>
+        ) : null}
       </div>
 
       <div className="gradient-border p-5">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Opis krótki
+            {shortDescriptionLabel}
           </span>
-          <button
-            type="button"
-            onClick={() => void handleSectionCopy(shortDescription, "short")}
-            className={copyButtonClass("short")}
-          >
-            {copiedSection === "short" ? "✅ Skopiowano!" : "📋 Kopiuj"}
-          </button>
+          <div className="flex items-center gap-2">
+            <span
+              className={
+                shortDescription.length <= shortMax
+                  ? "text-xs text-emerald-400"
+                  : "text-xs text-red-400"
+              }
+            >
+              {shortDescription.length}/{shortMax}
+              {shortDescription.length > shortMax ? " ⚠️" : ""}
+            </span>
+            <button
+              type="button"
+              onClick={() => void handleSectionCopy(shortDescription, "short")}
+              className={copyButtonClass("short")}
+            >
+              {copiedSection === "short" ? "✅ Skopiowano!" : "📋 Kopiuj"}
+            </button>
+          </div>
         </div>
         <p className="text-sm leading-relaxed text-foreground">
           {shortDescription}
@@ -257,10 +361,25 @@ export function DescriptionResult({
       </div>
 
       <div className="gradient-border p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Opis długi
-          </span>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Opis długi
+            </span>
+            <span
+              className={
+                longWordCount >= longMinWords ? "text-[10px] text-emerald-400/90" : "text-[10px] text-amber-400/90"
+              }
+              title={
+                result.platformLimits?.slug === "allegro"
+                  ? "Cel redakcyjny (jakość / SEO) — Allegro nie narzuca minimalnej liczby słów w opisie HTML."
+                  : "Zalecenie jakościowe dla tej platformy — lepsza treść pod konwersję i SEO."
+              }
+            >
+              ~{longWordCount} słów (cel min. {longMinWords})
+              {longWordCount < longMinWords ? " ⚠️" : ""}
+            </span>
+          </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
@@ -317,7 +436,7 @@ export function DescriptionResult({
 
       <div className="gradient-border p-5">
         <div className="mb-3 flex items-center justify-between">
-          <span className="text-sm font-medium text-foreground">Tagi SEO</span>
+          <span className="text-sm font-medium text-foreground">{tagsLabel}</span>
           <button
             type="button"
             onClick={() => void handleSectionCopy(tags.join(", "), "tags")}
@@ -361,13 +480,13 @@ export function DescriptionResult({
           <div className="flex items-center gap-2">
             <span
               className={
-                metaDescription.length <= 160
+                metaDescription.length <= metaMax
                   ? "text-xs text-emerald-400"
                   : "text-xs text-red-400"
               }
             >
-              {metaDescription.length}/160
-              {metaDescription.length > 160 ? " ⚠️" : ""}
+              {metaDescription.length}/{metaMax}
+              {metaDescription.length > metaMax ? " ⚠️" : ""}
             </span>
             <button
               type="button"
@@ -412,6 +531,12 @@ export function DescriptionResult({
           💾 Zapisano ✅
         </button>
       </div>
+
+      {result.promptVersion ? (
+        <p className="text-center text-[10px] text-muted-foreground/50">
+          Wersja generatora: {result.promptVersion}
+        </p>
+      ) : null}
     </div>
   )
 }

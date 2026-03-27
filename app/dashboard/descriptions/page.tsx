@@ -167,6 +167,7 @@ export default function DescriptionsPage() {
           <option value="woocommerce">🌐 WooCommerce</option>
           <option value="olx">📦 OLX</option>
           <option value="ogolny">📝 Ogólny</option>
+          <option value="ogolny_plain">📄 Ogólny (tekst)</option>
         </select>
         <select
           value={sortBy}

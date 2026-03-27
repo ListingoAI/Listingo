@@ -54,6 +54,7 @@ export default function LoginPage() {
         } else {
           router.push("/dashboard")
         }
+        router.refresh()
       }
     } catch {
       setError("Wystąpił nieoczekiwany błąd.")

@@ -1,25 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --background: 222.2 84% 4.9%;
+  /* Głębsze tło + jaśniejsze karty = lepszy kontrast warstw (premium dark SaaS) */
+  --background: 222 44% 5.5%;
   --foreground: 210 40% 98%;
-  --card: 222.2 47% 8%;
+  --card: 222 38% 10.5%;
   --card-foreground: 210 40% 98%;
-  --popover: 222.2 47% 8%;
+  --popover: 222 38% 10.5%;
   --popover-foreground: 210 40% 98%;
-  --primary: 160 84% 39%;
+  --primary: 160 86% 52%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 217.2 32.6% 17.5%;
+  --secondary: 217 32% 14%;
   --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 160 84% 39%;
+  --muted: 217 28% 14%;
+  --muted-foreground: 215 18% 68%;
+  --accent: 160 86% 52%;
   --accent-foreground: 210 40% 98%;
+  /* Drugi ton (cyan) — gradienty, światło, detale obok emerald */
+  --accent-secondary: 187 58% 48%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 160 84% 39%;
+  --border: 217 22% 19%;
+  --input: 217 24% 17%;
+  --ring: 160 86% 52%;
   --radius: 0.75rem;
 }
 
@@ -32,6 +35,14 @@ body {
   color: hsl(var(--foreground));
 }
 
+/* Dashboard: subtelna „atmosfera” — emerald + cyan, bez neonu */
+.dashboard-atmosphere {
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% -35%, hsl(160 42% 22% / 0.16), transparent 54%),
+    radial-gradient(ellipse 85% 55% at 100% -5%, hsl(192 45% 24% / 0.1), transparent 52%),
+    radial-gradient(ellipse 70% 50% at 0% 105%, hsl(200 38% 18% / 0.08), transparent 48%);
+}
+
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 5rem; /* stały navbar — kotwice #funkcje, #cennik itd. */
@@ -42,14 +53,22 @@ html {
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: hsl(222.2 47% 8%);
+  background: hsl(222 38% 8%);
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(217.2 32.6% 25%);
+  background: linear-gradient(
+    180deg,
+    hsl(187 55% 42%) 0%,
+    hsl(160 72% 42%) 100%
+  );
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(160 84% 39%);
+  background: linear-gradient(
+    180deg,
+    hsl(187 58% 50%) 0%,
+    hsl(160 78% 48%) 100%
+  );
 }
 
 /* ==========================================
@@ -59,7 +78,7 @@ html {
 /* Gradient borders na kartach */
 .gradient-border {
   position: relative;
-  background: hsl(222.2 47% 8%);
+  background: hsl(222 38% 10.5%);
   border-radius: 1rem;
 }
 .gradient-border::before {
@@ -68,7 +87,12 @@ html {
   inset: 0;
   border-radius: 1rem;
   padding: 1px;
-  background: linear-gradient(135deg, hsl(160 84% 39% / 0.3), transparent 50%, hsl(160 84% 39% / 0.1));
+  background: linear-gradient(
+    135deg,
+    hsl(187 58% 48% / 0.22),
+    transparent 42%,
+    hsl(160 86% 52% / 0.2)
+  );
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -80,8 +104,9 @@ html {
   transition: all 0.3s ease;
 }
 .hover-glow:hover {
-  box-shadow: 0 0 30px hsl(160 84% 39% / 0.1), 
-              0 0 60px hsl(160 84% 39% / 0.05);
+  box-shadow:
+    0 0 28px hsl(187 58% 48% / 0.1),
+    0 0 48px hsl(160 86% 52% / 0.1);
 }
 
 /* Animated gradient text */
@@ -135,11 +160,70 @@ html {
 .typing-cursor::after {
   content: '|';
   animation: blink 1s step-end infinite;
-  color: hsl(160 84% 39%);
+  color: hsl(160 86% 52%);
 }
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
+}
+
+/* AI Sales Hub — scroll + CTA */
+.scrollbar-hub {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(16, 185, 129, 0.45) transparent;
+}
+.scrollbar-hub::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.scrollbar-hub::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-hub::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(34, 211, 238, 0.4),
+    rgba(16, 185, 129, 0.5)
+  );
+  border-radius: 4px;
+}
+.generate-cta-gradient {
+  border-radius: inherit;
+  background: linear-gradient(
+    120deg,
+    #06b6d4,
+    #14b8a6,
+    #10b981,
+    #059669,
+    #10b981,
+    #06b6d4
+  );
+  background-size: 220% 220%;
+  animation: generate-cta-shift 3s ease infinite alternate;
+}
+@keyframes generate-cta-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+@keyframes pulse-glow-cta {
+  0%,
+  100% {
+    box-shadow:
+      0 0 20px rgba(16, 185, 129, 0.15),
+      0 0 60px rgba(16, 185, 129, 0.05);
+  }
+  50% {
+    box-shadow:
+      0 0 28px rgba(16, 185, 129, 0.35),
+      0 0 72px rgba(16, 185, 129, 0.12);
+  }
+}
+.animate-pulse-glow {
+  animation: pulse-glow-cta 1.4s ease-in-out infinite;
 }
 
 /* Partner logos — infinite marquee (two identical strips, -50% loop) */
@@ -168,8 +252,8 @@ html {
 }
 .premium-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 40px hsl(160 84% 39% / 0.08);
-  border-color: hsl(160 84% 39% / 0.3);
+  box-shadow: 0 10px 40px hsl(160 88% 52% / 0.12);
+  border-color: hsl(160 88% 52% / 0.38);
 }
 
 /* Landing — subtle card lift on hover */
@@ -287,7 +371,7 @@ html {
   left: var(--mouse-x, -100px);
   width: 300px;
   height: 300px;
-  background: radial-gradient(circle, hsl(160 84% 39% / 0.06), transparent 70%);
+  background: radial-gradient(circle, hsl(160 88% 52% / 0.1), transparent 70%);
   transform: translate(-50%, -50%);
   pointer-events: none;
   transition: top 0.1s, left 0.1s;

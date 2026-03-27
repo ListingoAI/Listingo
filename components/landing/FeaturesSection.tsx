@@ -407,13 +407,17 @@ function PhotoStudioCompareDemo() {
   )
 }
 
+const VIDEO_STUDIO_DEMO_VIDEO = "/hero-studio/PO%20video.mp4"
+const VIDEO_STUDIO_DEMO_PO_STILL = "/hero-studio/po.webp"
+
 /**
- * Demo Video Studio: to samo ujęcie co Photo Studio — **statyczne zdjęcie** vs **klatka „po”** (packshot / gotowe pod wideo).
+ * Demo Video Studio: **po.webp** (lewo, klatka statyczna) vs **PO video.mp4** (prawo, wideo).
  * Ramka **3∶4** (900×1200), ten sam wzorzec suwaka co {@link PhotoStudioCompareDemo}.
  */
 function VideoStudioCompareDemo() {
   const [pos, setPos] = useState(48)
   const ref = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   const handleMove = useCallback((clientX: number) => {
     const el = ref.current
@@ -456,10 +460,18 @@ function VideoStudioCompareDemo() {
   const leftClip = `inset(0 ${100 - pos}% 0 0)`
   const rightClip = `inset(0 0 0 ${pos}%)`
 
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    v.play().catch(() => {
+      /* autoplay może być zablokowany do interakcji — wtedy odtworzy się po suwaku */
+    })
+  }, [])
+
   return (
     <div className="mt-5 w-full lg:mt-6 lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
       <p className="mb-2 text-[10px] font-medium text-muted-foreground/55">
-        Przesuń suwak — zdjęcie wejściowe vs klatka pod film (AI Video Studio)
+        Przesuń suwak — klatka statyczna (po) vs wideo (AI Video Studio)
       </p>
       <div
         ref={ref}
@@ -481,57 +493,39 @@ function VideoStudioCompareDemo() {
           }
         }}
       >
-        {/* Warstwa „wideo” — prawa strona suwaka: ta sama scena „po” + akcent wideo */}
+        {/* Warstwa wideo — prawa strona suwaka: PO video.mp4 */}
         <div
           className="absolute inset-0 z-1"
           style={{ clipPath: rightClip }}
           aria-hidden
         >
           <div className="pointer-events-none absolute inset-0 z-0">
-            {/* eslint-disable-next-line @next/next/no-img-element -- lokalne demo statyczne */}
-            <img
-              src="/hero-studio/PO1.webp"
-              alt=""
+            <video
+              ref={videoRef}
               className="absolute inset-0 h-full w-full object-cover object-center select-none"
-              draggable={false}
-            />
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="auto"
+              poster={VIDEO_STUDIO_DEMO_PO_STILL}
+            >
+              <source src={VIDEO_STUDIO_DEMO_VIDEO} type="video/mp4" />
+            </video>
             <div
-              className="absolute inset-0 bg-linear-to-br from-violet-950/35 via-transparent to-violet-900/25"
+              className="absolute inset-0 bg-linear-to-br from-violet-950/25 via-transparent to-violet-900/15"
               aria-hidden
             />
           </div>
           <span className="absolute top-2 right-2 z-2 rounded-md border border-violet-400/30 bg-violet-500/25 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-violet-100 uppercase backdrop-blur-sm">
-            Film
+            Wideo
           </span>
           <span className="absolute bottom-2 right-2 z-2 text-[8px] font-medium text-white drop-shadow-md">
-            Reels · ruch kamery
+            PO video · loop
           </span>
-          <div className="pointer-events-none absolute inset-0 z-1 flex items-center justify-center">
-            <motion.div
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/35 bg-black/45 shadow-lg backdrop-blur-sm sm:h-12 sm:w-12"
-              animate={{ scale: [1, 1.06, 1], opacity: [0.88, 1, 0.88] }}
-              transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                className="h-5 w-5 translate-x-0.5 text-white"
-                aria-hidden
-              >
-                <path d="M8 6.82v10.36c0 .79.87 1.27 1.54.84l8.14-5.18a1 1 0 0 0 0-1.69L9.54 5.98A1 1 0 0 0 8 6.82z" />
-              </svg>
-            </motion.div>
-          </div>
-          <div className="absolute right-0 bottom-0 left-0 z-2 h-1 bg-white/10">
-            <motion.div
-              className="h-full bg-violet-400/70"
-              animate={{ width: ["12%", "88%", "12%"] }}
-              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            />
-          </div>
         </div>
 
-        {/* Warstwa „zdjęcie” — lewa strona: wejście statyczne */}
+        {/* Warstwa „po” — lewa strona: klatka statyczna po.webp */}
         <div
           className="absolute inset-0 z-2"
           style={{ clipPath: leftClip }}
@@ -539,15 +533,15 @@ function VideoStudioCompareDemo() {
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- lokalne demo statyczne */}
           <img
-            src="/hero-studio/przed1.webp"
+            src={VIDEO_STUDIO_DEMO_PO_STILL}
             alt=""
             className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center select-none"
             draggable={false}
           />
           <span className="absolute top-2 left-2 rounded-md bg-black/40 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white/95 uppercase backdrop-blur-sm">
-            Zdjęcie
+            Po
           </span>
-          <span className="absolute bottom-2 left-2 text-[8px] text-white/90 drop-shadow-md">Wejście · jedna klatka</span>
+          <span className="absolute bottom-2 left-2 text-[8px] text-white/90 drop-shadow-md">Klatka · po.webp</span>
         </div>
 
         <div

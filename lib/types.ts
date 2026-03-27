@@ -37,6 +37,8 @@ export interface Description {
   meta_description: string | null
   quality_score: number
   quality_tips: string[]
+  /** Wersja szablonu promptu (jeśli kolumna w bazie) */
+  prompt_version?: string | null
   is_favorite: boolean
   folder: string
   created_at: string
@@ -60,11 +62,21 @@ export interface BrandVoice {
 // Request do API generowania
 export interface GenerateRequest {
   productName: string
+  /** JSON CategorySelection (kind:"category"|"custom") albo stary slug tekstowy */
   category: string
   features: string
   platform: string
   tone: string
   useBrandVoice?: boolean
+}
+
+/** Limity docelowe dla UI (z profilu platformy) — zwracane z API generate. */
+export type GeneratePlatformLimits = {
+  slug: string
+  titleMaxChars: number
+  shortDescMax: number
+  metaDescMax: number
+  longDescMinWords: number
 }
 
 // Odpowiedź z API generowania
@@ -78,6 +90,10 @@ export interface GenerateResponse {
   qualityTips: QualityTip[]
   descriptionId?: string
   creditsRemaining?: number
+  /** Wersja promptu / reguł użyta przy generacji */
+  promptVersion?: string
+  /** Limity platformy — liczniki znaków w wyniku */
+  platformLimits?: GeneratePlatformLimits
 }
 
 // Wskazówka jakości

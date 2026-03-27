@@ -336,16 +336,16 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">
+          <h1 className="bg-linear-to-r from-foreground via-foreground to-foreground/60 bg-clip-text text-2xl font-bold text-transparent">
             Witaj, {firstName}! 👋
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Oto podsumowanie Twojego konta
+          <p className="mt-1 text-sm text-muted-foreground/70">
+            {new Date().toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}
           </p>
         </div>
         <Link
           href="/dashboard/generate"
-          className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-medium text-white transition-all hover:scale-105 hover:bg-emerald-600 hover:shadow-lg hover:shadow-emerald-500/25"
+          className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 ring-1 ring-emerald-400/30 transition-all hover:scale-[1.02] hover:bg-emerald-400 hover:shadow-emerald-400/30 active:scale-[0.98]"
         >
           ✨ Generuj nowy opis
         </Link>
@@ -563,21 +563,22 @@ export default function DashboardPage() {
           </div>
 
           <section className="stagger-item mt-8 animate-fade-in" style={{ animationDelay: "0.28s" }}>
-            <h2 className="mb-4 text-lg font-semibold text-foreground">
-              Szybki start
-            </h2>
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/45">
+              Narzędzia
+            </p>
+            <h2 className="mb-4 text-base font-semibold text-foreground">Szybki start</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Link
                 href="/dashboard/generate?mode=form"
                 className="stagger-item block animate-fade-in"
                 style={{ animationDelay: "0.32s" }}
               >
-                <SpotlightSurface className="premium-card group relative h-full overflow-hidden rounded-2xl border border-border/50 bg-card/30 p-6">
+                <SpotlightSurface className="premium-card group relative h-full overflow-hidden rounded-2xl border border-white/8 bg-card/40 p-6 transition-all duration-300 hover:border-emerald-500/25 hover:shadow-[0_0_30px_-10px_rgba(16,185,129,0.2)]">
                   <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-emerald-500/5 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                   <div className="relative z-1">
-                    <span className="mb-4 block text-4xl transition-transform duration-300 group-hover:-translate-y-1">
+                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 bg-white/5 text-2xl transition-transform duration-300 group-hover:-translate-y-0.5">
                       📝
-                    </span>
+                    </div>
                     <p className="font-medium text-foreground transition-colors group-hover:text-emerald-400">
                       Generuj z formularza{" "}
                       <span className="inline-block transition-transform group-hover:translate-x-1">
@@ -596,7 +597,7 @@ export default function DashboardPage() {
                 className="stagger-item block animate-fade-in"
                 style={{ animationDelay: "0.4s" }}
               >
-                <SpotlightSurface className="premium-card group relative h-full overflow-hidden rounded-2xl border border-border/50 bg-card/30 p-6">
+                <SpotlightSurface className="premium-card group relative h-full overflow-hidden rounded-2xl border border-white/8 bg-card/40 p-6 transition-all duration-300 hover:border-emerald-500/25 hover:shadow-[0_0_30px_-10px_rgba(16,185,129,0.2)]">
                   {plan === "free" ? (
                     <span className="absolute top-3 right-3 z-10 rounded-full border border-emerald-500/30 bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-400">
                       Starter+
@@ -604,9 +605,9 @@ export default function DashboardPage() {
                   ) : null}
                   <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-emerald-500/5 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                   <div className="relative z-1">
-                    <span className="mb-4 block text-4xl transition-transform duration-300 group-hover:-translate-y-1">
+                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 bg-white/5 text-2xl transition-transform duration-300 group-hover:-translate-y-0.5">
                       📸
-                    </span>
+                    </div>
                     <p className="font-medium text-foreground transition-colors group-hover:text-emerald-400">
                       Generuj ze zdjęcia{" "}
                       <span className="inline-block transition-transform group-hover:translate-x-1">
@@ -625,7 +626,7 @@ export default function DashboardPage() {
                 className="stagger-item block animate-fade-in"
                 style={{ animationDelay: "0.48s" }}
               >
-                <SpotlightSurface className="premium-card group relative h-full overflow-hidden rounded-2xl border border-border/50 bg-card/30 p-6">
+                <SpotlightSurface className="premium-card group relative h-full overflow-hidden rounded-2xl border border-white/8 bg-card/40 p-6 transition-all duration-300 hover:border-emerald-500/25 hover:shadow-[0_0_30px_-10px_rgba(16,185,129,0.2)]">
                   {!isProOrScale(plan) ? (
                     <span className="absolute top-3 right-3 z-10 rounded-full border border-purple-500/30 bg-purple-500/20 px-2 py-0.5 text-xs text-purple-400">
                       Pro
@@ -633,9 +634,9 @@ export default function DashboardPage() {
                   ) : null}
                   <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-emerald-500/5 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                   <div className="relative z-1">
-                    <span className="mb-4 block text-4xl transition-transform duration-300 group-hover:-translate-y-1">
+                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 bg-white/5 text-2xl transition-transform duration-300 group-hover:-translate-y-0.5">
                       🔍
-                    </span>
+                    </div>
                     <p className="font-medium text-foreground transition-colors group-hover:text-emerald-400">
                       Analizuj konkurencję{" "}
                       <span className="inline-block transition-transform group-hover:translate-x-1">
@@ -653,9 +654,12 @@ export default function DashboardPage() {
 
           <section className="stagger-item mt-8 animate-fade-in" style={{ animationDelay: "0.52s" }}>
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-foreground">
-                Ostatnie opisy
-              </h2>
+              <div>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/45">
+                  Historia
+                </p>
+                <h2 className="text-base font-semibold text-foreground">Ostatnie opisy</h2>
+              </div>
               <Link
                 href="/dashboard/descriptions"
                 className="text-sm text-emerald-400 hover:underline"
@@ -748,7 +752,7 @@ export default function DashboardPage() {
                   return (
                     <SpotlightSurface
                       key={desc.id}
-                      className="premium-card stagger-item flex items-center justify-between rounded-xl border border-border/50 bg-card/50 p-4 transition-all hover:border-emerald-500/20"
+                      className="premium-card stagger-item flex items-center justify-between rounded-xl border border-white/6 bg-card/30 p-4 transition-all duration-200 hover:border-emerald-500/20 hover:bg-card/50"
                       style={{ animationDelay: `${index * 0.08}s` }}
                     >
                       <div className="flex min-w-0 flex-1 items-center gap-3">

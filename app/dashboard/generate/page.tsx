@@ -1,25 +1,32 @@
 "use client"
 
-import { Loader2 } from "lucide-react"
+import { motion } from "framer-motion"
+import {
+  Camera,
+  FileText,
+  Loader2,
+  Mail,
+  Search,
+  Share2,
+  TrendingUp,
+} from "lucide-react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import toast from "react-hot-toast"
 
-import DescriptionResult from "@/components/generator/DescriptionResult"
-import PlatformPreview from "@/components/generator/PlatformPreview"
+import { FormTabPremium } from "@/components/generate/hub/FormTabPremium"
 import { Label } from "@/components/ui/label"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { useUser } from "@/hooks/useUser"
-import { CATEGORIES, PLATFORMS, TONES } from "@/lib/constants"
+import { CATEGORIES, PLATFORMS } from "@/lib/constants"
 import { isProOrScale } from "@/lib/plans"
+import { buildQualityRefinementInstruction } from "@/lib/generation/build-quality-refinement-instruction"
+import { countWordsFromHtml } from "@/lib/generation/count-words-html"
+import { createClient } from "@/lib/supabase/client"
 import type { GenerateResponse } from "@/lib/types"
-import { copyToClipboard } from "@/lib/utils"
+import { cn, copyToClipboard } from "@/lib/utils"
+
+import type React from "react"
 
 type GenerateTabId = "form" | "social" | "price" | "email" | "image" | "url"
 
@@ -32,6 +39,22 @@ const TAB_IDS: GenerateTabId[] = [
   "url",
 ]
 
+const TABS: { id: GenerateTabId; label: string; icon: React.ElementType; sub: string }[] = [
+  { id: "form",   label: "Opis",        icon: FileText,   sub: "SEO · e-commerce" },
+  { id: "social", label: "Social",      icon: Share2,     sub: "Instagram · TikTok" },
+  { id: "price",  label: "Cena",        icon: TrendingUp, sub: "Analiza rynku" },
+  { id: "email",  label: "Email",       icon: Mail,       sub: "Kampania" },
+  { id: "image",  label: "Zdjęcie",     icon: Camera,     sub: "Packshot AI" },
+  { id: "url",    label: "Konkurencja", icon: Search,     sub: "Analiza URL" },
+]
+
+const LOADING_STEPS = [
+  "Analizuję produkt…",
+  "Buduję tytuł SEO…",
+  "Tworzę opis…",
+  "Finalizuję…",
+]
+
 function GeneratePageContent() {
   const searchParams = useSearchParams()
   const { profile, refreshProfile } = useUser()
@@ -42,8 +65,10 @@ function GeneratePageContent() {
   const [features, setFeatures] = useState("")
   const [platform, setPlatform] = useState("allegro")
   const [tone, setTone] = useState("profesjonalny")
-  const [useBrandVoice] = useState(false)
+  const [useBrandVoice, setUseBrandVoice] = useState(false)
+  const [brandVoiceData, setBrandVoiceData] = useState<{ tone?: string; style?: string } | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingStep, setLoadingStep] = useState(0)
   const [result, setResult] = useState<GenerateResponse | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [error, setError] = useState("")
@@ -80,6 +105,23 @@ function GeneratePageContent() {
     profileDefaultsAppliedFor.current = profile.id
   }, [profile])
 
+  useEffect(() => {
+    if (!profile) return
+    const supabase = createClient()
+    supabase
+      .from("brand_voices")
+      .select("detected_tone, detected_style")
+      .eq("user_id", profile.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data)
+          setBrandVoiceData({
+            tone: data.detected_tone ?? undefined,
+            style: data.detected_style ?? undefined,
+          })
+      })
+  }, [profile])
+
   const handleGenerate = useCallback(async () => {
     if (!productName.trim() || !features.trim()) return
 
@@ -88,6 +130,12 @@ function GeneratePageContent() {
     setError("")
     setResult(null)
     setShowPreview(false)
+    setLoadingStep(0)
+    const stepInterval = setInterval(
+      () =>
+        setLoadingStep((s) => Math.min(s + 1, LOADING_STEPS.length - 1)),
+      3000
+    )
 
     try {
       const response = await fetch("/api/generate", {
@@ -99,7 +147,8 @@ function GeneratePageContent() {
           features: features.trim(),
           platform,
           tone,
-          useBrandVoice,
+          brandVoice:
+            useBrandVoice && brandVoiceData ? brandVoiceData : undefined,
         }),
       })
 
@@ -137,6 +186,8 @@ function GeneratePageContent() {
     } catch {
       setError("Błąd połączenia. Sprawdź internet i spróbuj ponownie.")
     } finally {
+      clearInterval(stepInterval)
+      setLoadingStep(0)
       setLoading(false)
     }
   }, [
@@ -146,6 +197,119 @@ function GeneratePageContent() {
     platform,
     tone,
     useBrandVoice,
+    brandVoiceData,
+    refreshProfile,
+  ])
+
+  const handleRefineWithQuality = useCallback(async () => {
+    if (!result) return
+    if (!productName.trim()) {
+      toast.error("Wpisz nazwę produktu — jest potrzebna do ulepszenia.")
+      return
+    }
+    if (!features.trim()) {
+      toast.error(
+        "Wpisz cechy produktu — bez nich ulepszenie AI nie może się wykonać (wymóg API)."
+      )
+      return
+    }
+
+    const longHtml = result.longDescription ?? ""
+    const longWordCount = countWordsFromHtml(longHtml)
+
+    const instruction = buildQualityRefinementInstruction(
+      result.qualityTips ?? [],
+      {
+        longMinWords: result.platformLimits?.longDescMinWords ?? 150,
+        longWordCount,
+        titleMaxChars: result.platformLimits?.titleMaxChars,
+        shortDescMax: result.platformLimits?.shortDescMax,
+        metaDescMax: result.platformLimits?.metaDescMax,
+        platformSlug: result.platformLimits?.slug,
+        tone,
+      }
+    )
+
+    const startTime = Date.now()
+    setLoading(true)
+    setError("")
+    setLoadingStep(0)
+    const stepInterval = setInterval(
+      () =>
+        setLoadingStep((s) => Math.min(s + 1, LOADING_STEPS.length - 1)),
+      3000
+    )
+
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productName: productName.trim(),
+          category,
+          features: features.trim(),
+          platform,
+          tone,
+          brandVoice:
+            useBrandVoice && brandVoiceData ? brandVoiceData : undefined,
+          refinementOf: {
+            seoTitle: result.seoTitle,
+            shortDescription: result.shortDescription,
+            longDescription: result.longDescription,
+            tags: result.tags,
+            metaDescription: result.metaDescription,
+          },
+          refinementInstruction: instruction,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        if (response.status === 403) {
+          setError(
+            "Wykorzystałeś limit opisów w tym miesiącu. Przejdź na wyższy plan."
+          )
+        } else {
+          setError(data.error || "Wystąpił błąd. Spróbuj ponownie.")
+        }
+        return
+      }
+
+      const typed = data as GenerateResponse
+      setResult(typed)
+
+      if (typed.qualityScore >= 85) {
+        import("canvas-confetti").then((confetti) => {
+          confetti.default({
+            particleCount: 80,
+            spread: 60,
+            origin: { y: 0.7 },
+            colors: ["#10B981", "#34D399", "#6EE7B7"],
+          })
+        })
+      }
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1)
+      toast.success(`✨ Opis ulepszony w ${duration}s — zużyto 1 kredyt.`)
+
+      await refreshProfile()
+    } catch {
+      setError("Błąd połączenia. Sprawdź internet i spróbuj ponownie.")
+    } finally {
+      clearInterval(stepInterval)
+      setLoadingStep(0)
+      setLoading(false)
+    }
+  }, [
+    result,
+    productName,
+    category,
+    features,
+    platform,
+    tone,
+    useBrandVoice,
+    brandVoiceData,
     refreshProfile,
   ])
 
@@ -246,378 +410,115 @@ function GeneratePageContent() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">AI Sales Hub</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Wybierz narzędzie — AI zrobi resztę
+      <header className="mb-8 space-y-4">
+        <div className="inline-flex items-center gap-2.5 rounded-lg border border-white/10 bg-linear-to-r from-white/4 via-cyan-950/20 to-emerald-950/15 px-2.5 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+          <span className="h-3 w-px shrink-0 bg-linear-to-b from-cyan-400/50 to-emerald-500/50" aria-hidden />
+          <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-emerald-100/75">
+            Narzędzia AI
+          </span>
+        </div>
+        <h1 className="text-3xl font-bold leading-[1.1] tracking-tight text-foreground sm:text-4xl">
+          AI Sales{" "}
+          <span className="bg-linear-to-br from-white via-emerald-100/95 to-emerald-400/80 bg-clip-text text-transparent">
+            Hub
+          </span>
+        </h1>
+        <p className="max-w-xl text-[13px] leading-relaxed text-muted-foreground/90 sm:text-sm">
+          Wybierz moduł poniżej —{" "}
+          <span className="bg-linear-to-r from-cyan-400/80 to-emerald-400/85 bg-clip-text text-transparent">
+            AI dopasuje treść
+          </span>{" "}
+          do kanału,
+          formatu i tonu marki.
         </p>
-      </div>
+      </header>
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        {(
-          [
-            { id: "form" as const, label: "✨ Opis" },
-            { id: "social" as const, label: "📱 Social" },
-            { id: "price" as const, label: "💰 Cena" },
-            { id: "email" as const, label: "📧 Email" },
-            { id: "image" as const, label: "📸 Zdjęcie", badge: "Starter+" as const },
-            { id: "url" as const, label: "🔍 Konkurencja", badge: "Pro" as const },
-          ] as const
-        ).map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center rounded-xl border px-4 py-2.5 text-sm font-medium transition-all ${
-              activeTab === tab.id
-                ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-400"
-                : "border-border/50 bg-card/50 text-muted-foreground hover:border-emerald-500/30"
-            }`}
-          >
-            {tab.label}
-            {"badge" in tab && tab.badge === "Starter+" && plan === "free" ? (
-              <span className="ml-2 rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs text-emerald-400">
-                Starter+
-              </span>
-            ) : null}
-            {"badge" in tab && tab.badge === "Pro" && !isProOrScale(plan) ? (
-              <span className="ml-2 rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs text-emerald-400">
-                Pro
-              </span>
-            ) : null}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === "form" ? (
-        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-2">
-          <TooltipProvider delayDuration={300}>
-            <div className="space-y-5">
-            <div>
-              <div className="mb-2 flex items-center gap-2">
-                <Label
-                  htmlFor="productName"
-                  className="text-sm font-medium text-foreground"
-                >
-                  Nazwa produktu *
-                </Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className="inline-flex cursor-help text-xs text-muted-foreground/50 hover:text-muted-foreground"
-                      aria-label="Podpowiedź"
-                    >
-                      ℹ️
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs border border-border bg-card text-sm text-foreground">
-                    <p>
-                      Wpisz pełną nazwę produktu jak w sklepie. Uwzględnij
-                      materiał, kolor i wariant. AI użyje tego jako podstawy do
-                      tytułu SEO.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <input
-                id="productName"
-                type="text"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                placeholder="np. Koszulka męska bawełniana oversize"
-                maxLength={200}
-                className="h-10 w-full rounded-lg border border-border/50 bg-secondary/50 px-3 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              />
-              <div className="mt-1 flex justify-end">
-                <span className="text-xs text-muted-foreground">
-                  {productName.length}/200
-                </span>
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center gap-2">
-                <Label
-                  htmlFor="category"
-                  className="text-sm font-medium text-foreground"
-                >
-                  Kategoria
-                </Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className="inline-flex cursor-help text-xs text-muted-foreground/50 hover:text-muted-foreground"
-                      aria-label="Podpowiedź"
-                    >
-                      ℹ️
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs border border-border bg-card text-sm text-foreground">
-                    <p>
-                      Kategoria pomaga AI lepiej dobrać słowa kluczowe i styl
-                      opisu dla Twojej branży.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <select
-                id="category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="h-10 w-full rounded-lg border border-border/50 bg-secondary/50 px-3 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+      <div
+        className="-mx-1 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5"
+        role="tablist"
+        aria-label="Narzędzia AI Sales Hub"
+      >
+        <div className="inline-flex min-w-0 gap-1 rounded-2xl border border-white/10 bg-linear-to-br from-white/7 via-cyan-950/12 to-emerald-950/18 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_10px_40px_-18px_rgba(0,0,0,0.5),0_0_36px_-14px_rgba(16,185,129,0.08)] backdrop-blur-md">
+          {TABS.map((tab) => {
+            const Icon = tab.icon
+            const isActive = activeTab === tab.id
+            return (
+              <motion.button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "group relative flex shrink-0 items-center gap-2.5 overflow-hidden rounded-xl px-4 py-2.5 text-sm font-semibold tracking-tight transition-[transform,box-shadow,background-color,border-color,color] duration-300 ease-out will-change-transform",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  isActive
+                    ? [
+                        "text-white",
+                        "bg-linear-to-br from-cyan-500/15 via-emerald-500/22 to-emerald-950/35",
+                        "shadow-[0_0_0_1px_rgba(52,211,153,0.2),0_6px_22px_-6px_rgba(16,185,129,0.2),0_0_28px_-10px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.11)]",
+                      ]
+                    : [
+                        "border border-white/8 bg-white/5 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+                        "hover:border-cyan-500/18 hover:bg-white/9 hover:text-foreground",
+                        "hover:shadow-[0_4px_20px_-8px_rgba(16,185,129,0.12),0_0_24px_-12px_rgba(34,211,238,0.08)]",
+                      ]
+                )}
               >
-                <option value="">Wybierz kategorię...</option>
-                {CATEGORIES.map((cat) => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center gap-2">
-                <Label
-                  htmlFor="features"
-                  className="text-sm font-medium text-foreground"
-                >
-                  Cechy produktu *
-                </Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className="inline-flex cursor-help text-xs text-muted-foreground/50 hover:text-muted-foreground"
-                      aria-label="Podpowiedź"
-                    >
-                      ℹ️
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs border border-border bg-card text-sm text-foreground">
-                    <p>
-                      Każda cecha w nowej linii. Im więcej szczegółów
-                      (materiał, rozmiar, waga, kolor, technologia), tym lepszy
-                      i dokładniejszy będzie opis.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <textarea
-                id="features"
-                value={features}
-                onChange={(e) => setFeatures(e.target.value)}
-                placeholder={`Wymień najważniejsze cechy, każda w nowej linii:
-
-Materiał: 100% bawełna organiczna
-Rozmiary: S, M, L, XL, XXL
-Kolory: czarny, biały, szary
-Gramatura: 200g/m²
-Produkcja: Polska`}
-                rows={8}
-                className="w-full resize-none rounded-lg border border-border/50 bg-secondary/50 px-3 py-2 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                💡 Im więcej szczegółów podasz, tym lepszy opis wygeneruje AI
-              </p>
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center gap-2">
-                <span className="text-sm font-medium text-foreground">
-                  Platforma docelowa
-                </span>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className="inline-flex cursor-help text-xs text-muted-foreground/50 hover:text-muted-foreground"
-                      aria-label="Podpowiedź"
-                    >
-                      ℹ️
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs border border-border bg-card text-sm text-foreground">
-                    <p>
-                      Wybierz gdzie będziesz publikować opis. AI dostosuje
-                      format, długość i słowa kluczowe do wymagań wybranej
-                      platformy.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                {PLATFORMS.map((p) => {
-                  const active = platform === p.value
-                  return (
-                    <button
-                      key={p.value}
-                      type="button"
-                      onClick={() => setPlatform(p.value)}
-                      className={`rounded-xl p-3 text-center transition-all ${
-                        active
-                          ? "border-2 border-emerald-500 bg-emerald-500/10"
-                          : "border border-border/50 bg-card/30 hover:border-emerald-500/30"
-                      }`}
-                    >
-                      <div className="text-xl">{p.emoji}</div>
-                      <p className="mt-1 text-xs font-medium">{p.label}</p>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center gap-2">
-                <Label
-                  htmlFor="tone"
-                  className="text-sm font-medium text-foreground"
-                >
-                  Ton opisu
-                </Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className="inline-flex cursor-help text-xs text-muted-foreground/50 hover:text-muted-foreground"
-                      aria-label="Podpowiedź"
-                    >
-                      ℹ️
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs border border-border bg-card text-sm text-foreground">
-                    <p>
-                      Ton wpływa na język opisu. Profesjonalny = rzeczowy i
-                      ekspercki. Przyjazny = konwersacyjny. Luksusowy =
-                      elegancki i premium.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <select
-                id="tone"
-                value={tone}
-                onChange={(e) => setTone(e.target.value)}
-                className="h-10 w-full rounded-lg border border-border/50 bg-secondary/50 px-3 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              >
-                {TONES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.emoji} {t.label} — {t.description}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => void handleGenerate()}
-              disabled={loading || !productName.trim() || !features.trim()}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-4 text-base font-semibold text-white transition-all hover:scale-[1.02] hover:bg-emerald-600 hover:shadow-lg hover:shadow-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Generuję... (ok. 15 sek)
-                </>
-              ) : (
-                "✨ Generuj opis"
-              )}
-            </button>
-
-            <p className="mt-2 text-center text-xs text-muted-foreground">
-              💡 Skrót:{" "}
-              <kbd className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs">
-                Ctrl
-              </kbd>{" "}
-              +{" "}
-              <kbd className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs">
-                Enter
-              </kbd>{" "}
-              = Generuj
-            </p>
-
-            <p className="mt-2 text-center text-xs text-muted-foreground">
-              {creditsRemaining > 0 ? (
-                `Pozostało: ${creditsRemaining} kredytów w tym miesiącu`
-              ) : (
-                <span className="text-red-400">
-                  Wykorzystałeś limit.{" "}
-                  <Link
-                    href="/dashboard/settings"
-                    className="text-emerald-400 hover:underline"
-                  >
-                    Upgrade →
-                  </Link>
-                </span>
-              )}
-            </p>
-            </div>
-          </TooltipProvider>
-
-          <div className="lg:sticky lg:top-8 lg:self-start">
-            {error ? (
-              <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4">
-                <p className="text-sm text-red-400">{error}</p>
-                <button
-                  type="button"
-                  onClick={() => setError("")}
-                  className="mt-2 text-sm text-emerald-400 hover:underline"
-                >
-                  Spróbuj ponownie
-                </button>
-              </div>
-            ) : null}
-
-            {result === null && !loading && !error ? (
-              <div className="rounded-2xl border border-dashed border-border/50 bg-card/30 py-20 text-center">
-                <p className="mb-3 text-4xl">✨</p>
-                <p className="text-muted-foreground">
-                  Tu pojawi się wygenerowany opis
-                </p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Wypełnij formularz i kliknij Generuj
-                </p>
-              </div>
-            ) : null}
-
-            {loading ? (
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-border/50 bg-card/30 py-20">
-                <div
-                  className="mb-4 h-10 w-10 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent"
+                {isActive ? (
+                  <span
+                    className="pointer-events-none absolute inset-0 bg-linear-to-t from-transparent via-white/5 to-white/8 opacity-80"
+                    aria-hidden
+                  />
+                ) : null}
+                <Icon
+                  className={cn(
+                    "relative z-10 h-4 w-4 shrink-0 transition-colors duration-300",
+                    isActive
+                      ? "text-emerald-50/95"
+                      : "text-muted-foreground/85 group-hover:text-cyan-100/85"
+                  )}
                   aria-hidden
                 />
-                <p className="font-medium text-foreground">Generuję opis...</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  To potrwa około 15 sekund
-                </p>
-              </div>
-            ) : null}
-
-            {result !== null && !loading ? (
-              <>
-                <DescriptionResult result={result} productName={productName} />
-                <div className="mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setShowPreview(!showPreview)}
-                    className="mb-4 flex items-center gap-2 text-sm text-emerald-400 transition-colors hover:text-emerald-300"
-                  >
-                    {showPreview ? "🔽" : "▶️"} Podgląd na platformie
-                  </button>
-                  {showPreview ? (
-                    <PlatformPreview result={result} platform={platform} />
-                  ) : null}
-                </div>
-              </>
-            ) : null}
-          </div>
+                <span className="relative z-10">{tab.label}</span>
+              </motion.button>
+            )
+          })}
         </div>
-      ) : null}
+      </div>
 
+      <div className="min-w-0">
+      {activeTab === "form" ? (
+        <FormTabPremium
+          productName={productName}
+          setProductName={setProductName}
+          category={category}
+          setCategory={setCategory}
+          features={features}
+          setFeatures={setFeatures}
+          platform={platform}
+          setPlatform={setPlatform}
+          tone={tone}
+          setTone={setTone}
+          useBrandVoice={useBrandVoice}
+          setUseBrandVoice={setUseBrandVoice}
+          brandVoiceData={brandVoiceData}
+          loading={loading}
+          loadingStep={loadingStep}
+          loadingMessages={LOADING_STEPS}
+          handleGenerate={handleGenerate}
+          handleRefineQuality={handleRefineWithQuality}
+          result={result}
+          showPreview={showPreview}
+          setShowPreview={setShowPreview}
+          error={error}
+          creditsRemaining={creditsRemaining}
+        />
+      ) : null}
       {activeTab === "social" ? (
-        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
           <div className="space-y-5">
             <div>
               <Label
@@ -633,7 +534,7 @@ Produkcja: Polska`}
                 onChange={(e) => setProductName(e.target.value)}
                 placeholder="np. Koszulka męska bawełniana oversize"
                 maxLength={200}
-                className="h-10 w-full rounded-lg border border-border/50 bg-secondary/50 px-3 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full rounded-xl border border-white/10 bg-background/60 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/20 transition-colors"
               />
             </div>
             <div>
@@ -649,7 +550,7 @@ Produkcja: Polska`}
                 onChange={(e) => setFeatures(e.target.value)}
                 placeholder="Wpisz cechy produktu — AI stworzy z nich posty"
                 rows={4}
-                className="w-full resize-none rounded-lg border border-border/50 bg-secondary/50 px-3 py-2 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full resize-none rounded-xl border border-white/10 bg-background/60 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/20 transition-colors"
               />
             </div>
             <div>
@@ -835,7 +736,7 @@ Produkcja: Polska`}
       ) : null}
 
       {activeTab === "price" ? (
-        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
           <div className="space-y-5">
             <div>
               <Label
@@ -849,7 +750,7 @@ Produkcja: Polska`}
                 type="text"
                 value={productName}
                 onChange={(e) => setProductName(e.target.value)}
-                className="h-10 w-full rounded-lg border border-border/50 bg-secondary/50 px-3 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full rounded-xl border border-white/10 bg-background/60 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/20 transition-colors"
               />
             </div>
             <div>
@@ -863,7 +764,7 @@ Produkcja: Polska`}
                 id="priceCategory"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="h-10 w-full rounded-lg border border-border/50 bg-secondary/50 px-3 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full rounded-xl border border-white/10 bg-background/60 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/20 transition-colors"
               >
                 <option value="">Wybierz kategorię...</option>
                 {CATEGORIES.map((cat) => (
@@ -885,7 +786,7 @@ Produkcja: Polska`}
                 value={features}
                 onChange={(e) => setFeatures(e.target.value)}
                 rows={4}
-                className="w-full resize-none rounded-lg border border-border/50 bg-secondary/50 px-3 py-2 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full resize-none rounded-xl border border-white/10 bg-background/60 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/20 transition-colors"
               />
             </div>
             <div>
@@ -1113,6 +1014,7 @@ Produkcja: Polska`}
           )}
         </div>
       ) : null}
+      </div>
     </div>
   )
 }

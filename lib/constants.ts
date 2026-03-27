@@ -1,4 +1,7 @@
-// Kategorie produktów
+/**
+ * Kategorie onboarding / uproszczone etykiety (nie taksonomia Allegro).
+ * Generator opisów używa pełnych kategorii Allegro — zob. data/allegro-categories.json
+ */
 export const CATEGORIES = [
   { value: "odziez", label: "👕 Odzież i akcesoria" },
   { value: "elektronika", label: "📱 Elektronika" },
@@ -21,8 +24,12 @@ export const PLATFORMS = [
   { value: "shoper", label: "Shoper", emoji: "🏪" },
   { value: "woocommerce", label: "WooCommerce", emoji: "🌐" },
   { value: "ebay", label: "eBay", emoji: "🏷️" },
+  { value: "etsy", label: "Etsy", emoji: "🧶" },
+  { value: "vinted", label: "Vinted", emoji: "👚" },
+  { value: "empikplace", label: "Empik Place", emoji: "📚" },
   { value: "olx", label: "OLX", emoji: "📋" },
   { value: "ogolny", label: "Ogólny", emoji: "📝" },
+  { value: "ogolny_plain", label: "Ogólny (tekst)", emoji: "📄" },
 ] as const
 
 // Tony opisów
@@ -56,5 +63,23 @@ export const TONES = [
     label: "Techniczny",
     description: "Precyzyjny, szczegółowy",
     emoji: "🔧",
+  },
+  {
+    value: "sprzedazowy",
+    label: "Sprzedażowy",
+    description: "Perswazyjny, CTA, pilność bez fałszu",
+    emoji: "📣",
+  },
+  {
+    value: "narracyjny",
+    label: "Narracyjny",
+    description: "Historia, emocje, scenariusze użycia",
+    emoji: "📖",
+  },
+  {
+    value: "zwiezly",
+    label: "Zwięzły",
+    description: "Krótkie zdania, na temat, bez lania wody",
+    emoji: "✂️",
   },
 ] as const

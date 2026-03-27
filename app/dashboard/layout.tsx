@@ -1,6 +1,6 @@
 "use client"
 
-import { Menu } from "lucide-react"
+import { Camera, FileText, LayoutDashboard, Menu, Mic2, Settings2, Video, Zap } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
@@ -13,23 +13,13 @@ import type { Profile } from "@/lib/types"
 import type { User } from "@supabase/supabase-js"
 
 const NAV_LINKS = [
-  { href: "/dashboard", label: "Dashboard", emoji: "📊" },
-  { href: "/dashboard/generate", label: "AI Sales Hub", emoji: "⚡" },
-  {
-    href: "/dashboard/photo-studio",
-    label: "Photo Studio",
-    emoji: "📸",
-    newBadge: true,
-  },
-  {
-    href: "/dashboard/video-studio",
-    label: "Video Studio",
-    emoji: "🎬",
-    newBadge: true,
-  },
-  { href: "/dashboard/descriptions", label: "Moje opisy", emoji: "📋" },
-  { href: "/dashboard/brand", label: "Brand Voice", emoji: "🎨" },
-  { href: "/dashboard/settings", label: "Ustawienia", emoji: "⚙️" },
+  { href: "/dashboard",              label: "Dashboard",    icon: LayoutDashboard, sublabel: "Przegląd konta" },
+  { href: "/dashboard/generate",     label: "AI Sales Hub", icon: Zap,             sublabel: "Generuj opisy i posty" },
+  { href: "/dashboard/photo-studio", label: "Photo Studio", icon: Camera,          sublabel: "Packshot AI",       newBadge: true },
+  { href: "/dashboard/video-studio", label: "Video Studio", icon: Video,           sublabel: "Film produktowy",   newBadge: true },
+  { href: "/dashboard/descriptions", label: "Moje opisy",   icon: FileText,        sublabel: "Biblioteka opisów" },
+  { href: "/dashboard/brand",        label: "Brand Voice",  icon: Mic2,            sublabel: "Ton i styl marki" },
+  { href: "/dashboard/settings",     label: "Ustawienia",   icon: Settings2,       sublabel: "Plan i konto" },
 ] as const
 
 function getInitials(fullName: string | null | undefined): string {
@@ -74,17 +64,19 @@ function SidebarBody({
       <Link
         href="/dashboard"
         onClick={onLinkClick}
-        className="mb-8 flex items-center gap-2"
+        className="flex items-center gap-2"
       >
-        <ListingoBoltMark className="h-8 w-auto" />
-        <span className="bg-linear-to-r from-emerald-400 to-emerald-600 bg-clip-text text-xl font-bold text-transparent">
+        <ListingoBoltMark className="h-7 w-auto" />
+        <span className="bg-linear-to-r from-emerald-400 to-emerald-500 bg-clip-text text-xl font-bold text-transparent">
           Listingo
         </span>
       </Link>
+      <div className="mb-7 mt-4 h-px bg-white/6" />
 
-      <nav className="flex-1 space-y-1">
+      <nav className="flex-1 space-y-0.5">
         {NAV_LINKS.map((item) => {
           const active = pathname === item.href
+          const Icon = item.icon
           return (
             <Link
               key={item.href}
@@ -92,11 +84,11 @@ function SidebarBody({
               onClick={onLinkClick}
               className={
                 active
-                  ? "flex w-full items-center gap-3 rounded-xl border-l-2 border-emerald-500 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-400"
-                  : "flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm text-muted-foreground transition-all hover:bg-secondary/50 hover:text-foreground"
+                  ? "flex w-full items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/12 px-3 py-2.5 text-sm font-medium text-emerald-300 shadow-sm shadow-emerald-500/10 transition-all"
+                  : "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground/80 transition-all hover:bg-white/5 hover:text-foreground"
               }
             >
-              <span aria-hidden>{item.emoji}</span>
+              <Icon className="h-4 w-4 shrink-0" />
               {item.label}
               {"newBadge" in item && item.newBadge ? (
                 <span className="ml-auto rounded-full border border-orange-500/30 bg-orange-500/20 px-1.5 py-0.5 text-[10px] text-orange-400">
@@ -109,9 +101,11 @@ function SidebarBody({
       </nav>
 
       <div className="mt-auto pt-6">
-        <div className="space-y-3 rounded-xl border border-border/50 bg-secondary/30 p-4">
+        <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+            Plan aktywny
+          </p>
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Twój plan</span>
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                 plan === "free"
@@ -125,38 +119,33 @@ function SidebarBody({
             >
               {planLabel(plan)}
             </span>
+            <span className="text-xs text-muted-foreground">
+              {creditsUsed}/{creditsLimit}
+            </span>
           </div>
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Kredyty</span>
-              <span className="text-foreground">
-                {creditsUsed}/{creditsLimit}
-              </span>
-            </div>
-            <div className="h-2 w-full rounded-full bg-secondary">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-                style={{
-                  width: `${Math.min(100, (creditsUsed / safeLimit) * 100)}%`,
-                }}
-              />
-            </div>
+          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+            <div
+              className={`h-full rounded-full transition-all duration-700 ${barColor}`}
+              style={{
+                width: `${Math.min(100, (creditsUsed / safeLimit) * 100)}%`,
+              }}
+            />
           </div>
           {plan !== "scale" ? (
             <Link
               href="/dashboard/settings"
               onClick={onLinkClick}
-              className="block text-center text-xs text-emerald-400 hover:underline"
+              className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 py-2 text-xs font-medium text-emerald-400 transition-all hover:bg-emerald-500/18 hover:text-emerald-300"
             >
-              Przejdź na wyższy plan →
+              Upgrade ↑
             </Link>
           ) : null}
         </div>
       </div>
 
-      <div className="mt-4 border-t border-border/50 pt-4">
+      <div className="mt-4 border-t border-white/6 pt-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-sm font-semibold text-emerald-400">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-sm font-semibold text-emerald-300 ring-2 ring-emerald-500/20 ring-offset-1 ring-offset-background">
             {getInitials(profile?.full_name)}
           </div>
           <div className="min-w-0 flex-1">
@@ -171,7 +160,7 @@ function SidebarBody({
         <form action="/api/auth/logout" method="POST" className="mt-3">
           <button
             type="submit"
-            className="w-full text-left text-xs text-muted-foreground transition-colors hover:text-red-400"
+            className="w-full text-left text-xs text-muted-foreground/50 transition-colors hover:text-red-400/90"
           >
             Wyloguj się
           </button>
@@ -204,8 +193,12 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="hidden w-72 flex-col border-r border-border/50 bg-card/30 p-6 lg:flex">
+    <div className="relative flex min-h-screen bg-background">
+      <div
+        className="dashboard-atmosphere pointer-events-none fixed inset-0 z-0"
+        aria-hidden
+      />
+      <aside className="relative z-10 hidden w-64 flex-col border-r border-white/10 bg-card/55 p-5 shadow-[inset_-1px_0_0_rgba(255,255,255,0.05)] backdrop-blur-xl lg:flex">
         <div className="flex min-h-0 flex-1 flex-col">
           <SidebarBody {...sidebarProps} />
         </div>
@@ -214,7 +207,7 @@ export default function DashboardLayout({
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
         <SheetContent
           side="left"
-          className="w-72 border-r border-border/50 bg-card p-6"
+          className="w-64 border-r border-white/6 bg-card p-5"
         >
           <SheetTitle className="sr-only">Menu nawigacji dashboardu</SheetTitle>
           <div className="flex min-h-0 flex-1 flex-col">
@@ -226,8 +219,8 @@ export default function DashboardLayout({
         </SheetContent>
       </Sheet>
 
-      <div className="flex min-h-screen flex-1 flex-col">
-        <div className="sticky top-0 z-40 border-b border-border/50 bg-background/80 px-4 py-3 backdrop-blur-lg lg:hidden">
+      <div className="relative z-10 flex min-h-screen flex-1 flex-col">
+        <div className="sticky top-0 z-40 border-b border-white/10 bg-background/85 px-4 py-3 shadow-[0_0_40px_-20px_rgba(0,0,0,0.5)] backdrop-blur-xl lg:hidden">
           <div className="flex items-center justify-between">
             <button
               type="button"
@@ -239,7 +232,7 @@ export default function DashboardLayout({
             </button>
             <Link href="/dashboard" className="flex items-center gap-1.5">
               <ListingoBoltMark className="h-6 w-auto" />
-              <span className="bg-linear-to-r from-emerald-400 to-emerald-600 bg-clip-text text-base font-bold text-transparent">
+              <span className="bg-linear-to-r from-emerald-400 to-emerald-500 bg-clip-text text-base font-bold text-transparent">
                 Listingo
               </span>
             </Link>
@@ -250,7 +243,7 @@ export default function DashboardLayout({
           </div>
         </div>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 p-6 lg:p-8">
+        <main className="relative mx-auto w-full max-w-6xl flex-1 p-6 lg:p-8">
           {loading ? (
             <div className="flex min-h-[50vh] items-center justify-center">
               <div
