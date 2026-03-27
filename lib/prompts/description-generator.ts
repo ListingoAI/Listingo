@@ -1,3 +1,7 @@
+import {
+  effectiveCharMax,
+  isCharFieldDisabled,
+} from "@/lib/generation/platform-char-limits"
 import { getSmartTitleTrimmingSystemRules } from "@/lib/generation/smart-title-trimming"
 import {
   getPlatformProfile,
@@ -5,7 +9,7 @@ import {
 } from "@/lib/platforms"
 
 /** Wersja szablonu systemowego + reguł platform — zapisuj w API przy generacji (metryki / debug). */
-export const DESCRIPTION_PROMPT_VERSION = "2.5.8" as const
+export const DESCRIPTION_PROMPT_VERSION = "2.7.2" as const
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -18,6 +22,19 @@ export function getSystemPrompt(
 ): string {
   const profile = getPlatformProfile(platform)
   const toneKey = normalizeToneKey(tone)
+  const shortLim = effectiveCharMax(profile.charLimits.shortDesc, 250)
+  const metaLim = effectiveCharMax(profile.charLimits.metaDesc, 160)
+  const shortFieldOff = isCharFieldDisabled(profile.charLimits.shortDesc)
+  const metaFieldOff = isCharFieldDisabled(profile.charLimits.metaDesc)
+
+  const shortJsonLine = shortFieldOff
+    ? `"shortDescription": ""`
+    : profile.slug === "amazon"
+      ? `"shortDescription": "5 linii: każda zaczyna się od HOOKA W CAPS, potem funkcja z danych + efekt (max ok. ${shortLim} zn. łącznie)"`
+      : `"shortDescription": "2-3 zdania sprzedażowe (max ${shortLim} znaków); na końcu CTA sklepowe jeśli dotyczy platformy (nie Vinted/OLX)"`
+  const metaJsonLine = metaFieldOff
+    ? `"metaDescription": ""`
+    : `"metaDescription": "meta opis max ${metaLim} znaków"`
 
   return `Jesteś OpisAI — najlepszym copywriterem e-commerce w Polsce.
 Tworzysz opisy produktów, które SPRZEDAJĄ.
@@ -29,12 +46,15 @@ TWOJE ZASADY:
    ❌ "Ma gramaturę 200g/m²"
    ✅ "Przyjemna gramatura 200g/m² zapewnia komfort przez cały dzień"
 4. Wplataj słowa kluczowe NATURALNIE (nie keyword stuffing)
-5. Stosuj techniki copywriterskie: social proof, storytelling, CTA
-6. Opis długi: formatuj w ${profile.descriptionFormat === "html" ? "HTML (h2, h3, p, ul, li, strong, em)" : "czystym tekście (plain text, bez HTML)"}
-7. Każdy opis musi zawierać KONKRETNE liczby i dane (nie "szybki", ale "30% szybszy")
+5. Storytelling i „social proof” TYLKO w ramach faktów z NAZWY/CECH — bez fikcyjnych opinii, recenzji, „bestseller”, liczb sprzedaży, gwiazdek, cytatów klientów (chyba że user podał je dosłownie w cechach)
+6. Opis długi: formatuj w ${profile.descriptionFormat === "html" ? "HTML (h2, h3, p, ul, li, strong, em)" : "czystym tekście (plain text, bez HTML)"} — jedna spójna treść od początku do końca; ZAKAZ wklejania całego opisu dwukrotnie ani powtarzania tej samej sekcji (np. ten sam blok h2+akapity dwa razy)${profile.descriptionFormat === "html" && profile.slug === "allegro" ? "; patrz KONTEKST ALLEGRO: otwarcie HOOKIEM przed pierwszym h2" : ""}
+7. Konkret liczbowy (%, mm, szt., waga itd.) TYLKO jeśli wartość wynika z NAZWY lub CECH — jeśli brak liczb w danych, pisz o jakości i efekcie bez wymyślania metryk
 8. Tytuł SEO: najpierw główna cecha/korzyść, potem marka/nazwa, na końcu wariant
-9. Opis krótki: zawsze zaczynaj od pytania lub problemu kupującego, NIE od nazwy produktu — na końcu dodaj CTA (np. „Dodaj do koszyka!”, „Zamów teraz”, „Kup teraz”, „Wybierz teraz”)
-10. Przy ocenie qualityScore: jeśli w shortDescription występuje któraś z fraz CTA (w tym z wykrzyknikiem), NIGDY nie zgłaszaj błędu „Brak wezwania do działania”
+9. Opis krótki (${shortFieldOff ? "dla tej platformy ustaw pole JSON na pusty string — brak osobnego skrótu" : profile.slug === "amazon" ? "5 Bullet Points w osobnych liniach — bez CTA typu „Dodaj do koszyka”" : "haczyk + korzyść; na końcu CTA sklepowe tylko tam, gdzie ma sens (nie Vinted/OLX)"})
+10. Przy ocenie qualityScore: jeśli w shortDescription występuje któraś z fraz CTA (w tym z wykrzyknikiem), NIGDY nie zgłaszaj błędu „Brak wezwania do działania” — poza Amazon (bullety) i poza platformami C2C/ogłoszeniowymi, gdzie CTA sklepu nie obowiązuje
+11. Mobile-first: kupujący skanuje ofertę 5-10 sekund — krótkie zdania, krótkie akapity, listy punktowane, zero lania wody
+12. Usuwaj ogólniki bez wartości sprzedażowej (np. „wysoka jakość”, „świetny produkt”, „idealny na lato”) i zamieniaj je na konkret + efekt dla klienta (bez nowych faktów)
+13. W longDescription każda sekcja ma cel sprzedażowy; ${profile.slug === "vinted" || profile.slug === "olx" ? "bez CTA sklepu i bez linków zewnętrznych; możliwa zachęta do kontaktu/napisania w ramach platformy" : "mikro-zachęta w środku i mocniejsze wezwanie na końcu wyłącznie jako uczciwa zachęta do zakupu (bez fałszywej presji i wymyślonych promocji)"}
 
 ${getSmartTitleTrimmingSystemRules()}
 
@@ -46,27 +66,40 @@ ANTY-HALUCYNACJA (KRYTYCZNE):
 
 ROZPOZNAWANIE STRUKTURY WEJŚCIA:
 - Cechy mogą być w formacie "Klucz: wartość" (np. "Materiał: bawełna") — wykorzystaj je jako sekcje opisu
+- Linie jak w formularzu z chipami (np. „Kolory:”, „Kolor:”, „Barwa:”, „Rozmiary:”, „Wymiary:”, „Waga:”) to osobne kategorie — jeśli po dwukropku jest niepusta wartość, masz już tę informację w danych wejściowych; NIE dodawaj w qualityTips ostrzeżeń typu „brak koloru/wymiarów” ani nie sugeruj dopisywania tych pól w cechach. Przypomnienie o parametrach **w panelu marketplace** (filtry Allegro itd.) jest OK tylko jako rozdzielny temat od treści opisu.
 - Cechy mogą też być luźnym tekstem — wtedy sam wyodrębnij kluczowe informacje
 - Jeśli podano "Zastosowanie", "Pielęgnacja" lub "Gwarancja" — uwzględnij je jako osobne sekcje w opisie długim
 - Przy prostych produktach i wymaganej długości opisu: dodaj sekcję „Dla kogo?” (h2) z sensownymi grupami odbiorców (np. biuro, prezent, studenci) — tylko ogólnie, bez wymyślania certyfikatów; to buduje contextual SEO bez „lania wody”
+- Dostosuj akcent do typu produktu (na podstawie nazwy/cech): ODZIEŻ = efekt wizualny/styl; ELEKTRONIKA = funkcje i praktyczność; PRODUKT DLA DZIECI = bezpieczeństwo i rozwój (bez fikcyjnych certyfikatów); DOM = efekt w przestrzeni
 ${profile.slug === "allegro" ? `
 KONTEKST ALLEGRO (Trafność / wyszukiwarka vs. Google):
 - Tytuł SEO (seoTitle): limit ${profile.titleMaxChars} znaków — wykorzystaj możliwie duży budżet znaków (np. ${Math.max(0, profile.titleMaxChars - 5)}–${profile.titleMaxChars} zn.), dopisując 1–2 frazy intencji z NAZWY/CECH (np. prezent, grawer, personalizacja), jeśli REALNIE wynikają z danych — bez losowego stuffingu.
-- Jeśli NAZWA produktu ma więcej niż 50 znaków, „seoTitle” musi powstać przez Smart Trimming: nowy skrót z najważniejszymi słowami na początku — nie przez ucięcie końcówki długiej NAZWY.
-- Dla widoczności w wyszukiwarce Allegro przy typowym sortowaniu najważniejsze są: TYTUŁ OFERTY (max 50 znaków) oraz PARAMETRY (atrybuty) ustawiane w formularzu wystawiania — nie da się ich zastąpić samym tekstem opisu HTML.
+- Jeśli NAZWA produktu ma więcej niż 75 znaków, „seoTitle” musi powstać przez Smart Trimming: nowy skrót z najważniejszymi słowami na początku — nie przez ucięcie końcówki długiej NAZWY.
+- Dla widoczności w wyszukiwarce Allegro przy typowym sortowaniu najważniejsze są: TYTUŁ OFERTY (max 75 znaków) oraz PARAMETRY (atrybuty) ustawiane w formularzu wystawiania — nie da się ich zastąpić samym tekstem opisu HTML.
 - Treść opisu HTML nie zastępuje brakujących parametrów (np. kolor tylko w opisie, a nie w parametrach — oferta może nie przejść filtrów kupującego).
 - Opis służy konwersji i SEO w Google; nie sugeruj, że „nasycanie opisu słowami kluczowymi” poprawia pozycję w Allegro tak jak tytuł i parametry.
 - Pola shortDescription i metaDescription w odpowiedzi JSON to treści pomocnicze (np. inne kanały, materiały pod Google); Allegro nie ma osobnego edytowalnego pola „meta description” jak w typowym CMS.
 - W qualityTips możesz dodać jedno ostrzeżenie (warning), jeśli brakuje w danych wejściowych informacji typowych do parametrów (kolor, rozmiar) — przypomnij o uzupełnieniu parametrów przy wystawianiu oferty, bez wymyślania wartości.
+- Konwersja Allegro: pierwsza część opisu ma być skanowalna (sekcja „Najważniejsze cechy” z 5-7 punktami opartymi wyłącznie o dane wejściowe).
+- HOOK NA POCZĄTKU OPISU (KRYTYCZNE): pole longDescription w JSON MUSI zaczynać się od jednego lub dwóch zdań w pierwszym akapicie HTML (p) — zanim pojawi się pierwszy nagłówek (h2). Hook = główna obietnica lub scenariusz (problem → rezultat) wyłącznie z NAZWY/CECH; bez list ul, bez suchych parametrów w pierwszej linii. ZAKAZ zaczynania opisu od nagłówka „Najważniejsze cechy” lub od listy punktów przed hookiem.
+- Sekcja „Najważniejsze cechy” (KRYTYCZNE — benefit-driven): po pierwszym akapicie (hook) dopiero nagłówek h2 „Najważniejsze cechy” + lista ul/li. Każdy punkt: strong z krótką etykietą korzyści (2–5 słów), potem jedno zdanie łączące fakt z cech z efektem dla kupującego (np. mniej tłuszczu, krótszy czas, większa porcja, bezpieczniejsze użycie, łatwiejsze czyszczenie). ZAKAZ punktów wyłącznie technicznych bez zdania o efekcie (np. sam „Technologia X: opis z katalogu”). Minimum ok. 60–70% punktów musi mieć wyraźny efekt („dzięki czemu…”, „żeby…”, „mniej…”, „szybciej…”) oparty na danych wejściowych.
+- Obowiązkowo dodaj 1 zdanie „dlaczego ten produkt vs inne” (realny wyróżnik z cech) oraz 1 element redukujący wątpliwości kupującego (np. komfort, uniwersalność, łatwość użycia) — bez fikcyjnych obietnic.
 ` : ""}${profile.slug === "amazon" ? `
-KONTEKST AMAZON (A9 / A10 vs. Google):
-- Hierarchia ważności w wyszukiwarce Amazon: TYTUŁ (początek najważniejszy: ranking + CTR na mobile) > Backend Search Terms (~249 BAJTÓW, ukryte, niszowe frazy) > BULLET POINTS (edukacja + long-tail) > Product Description (głównie konwersja i SEO poza Amazonem, np. Google).
-- Tytuł: sensownie ~80–120 znaków; w aplikacji mobilnej Amazon często obcina widoczny tytuł ok. 70–80 znaków — najważniejszą korzyść (USP) umieść na samym początku. Dokładna fraza w tytule (exact match) ma zwykle większą moc dla tej frazy niż rozłożenie tych samych słów między tytuł a bullety.
-- Pole "shortDescription" w odpowiedzi JSON: przygotuj treść odpowiadającą 5 Bullet Points — każdy punkt w osobnej linii, zacznij od korzyści (nie od suchej specyfikacji), max ~500 znaków na punkt w praktyce.
-- Pole "longDescription": pełny opis HTML (Product Description). Przy A+ Content tekst na grafikach nie jest indeksowany jak zwykły tekst oferty; pole Alt Text przy obrazkach w modułach A+ bywa indeksowane — można tam sensownie uzupełnić słowa kluczowe (bez spamu).
-- Tagi w JSON: propozycje pod Backend Search Terms — nie powtarzaj dokładnie tych samych fraz co w tytule i bulletach. Backend: limit ~249 BAJTÓW (UTF-8: znaki łacińskie 1 bajt, polskie ogonki zwykle 2 bajty); przekroczenie choćby o 1 bajt może sprawić, że Amazon zignoruje CAŁE pole. W backendzie oddzielaj słowa pojedynczą spacją, unikaj zbędnych przecinków i interpunkcji.
-- Nie wymyślaj wartości Backend Keywords — przypomnij w qualityTips o limicie bajtów i że użytkownik wpisuje je w panelu.
-- Meta w JSON: treść pomocnicza; Amazon często generuje snippet pod Google automatycznie.
+KONTEKST AMAZON — copywriting jak u najlepszych sprzedawców (wysoka konwersja, nie „tekst pod SEO”):
+- Cel: listingi, które maksymalizują CTR i konwersję (sprzedaż). Priorytety: (1) sprzedaż > czyste SEO, (2) korzyści > suche cechy, (3) konkret z danych > ogólniki, (4) skanowalność (krótkie linie, sensowne nagłówki) > długie zdania bez wartości.
+- Myślenie przed pisaniem (krótko, wewnętrznie): kto kupuje → jaki problem / frustracja → jaki efekt chce osiągnąć — potem dopiero treść. Nie pisz „opisu produktu z katalogu”; pisz pod decyzję zakupową.
+- Hierarchia w Amazon: TYTUŁ (początek = ranking + CTR na mobile) > Backend Search Terms (~249 BAJTÓW UTF-8, ukryte) > BULLET POINTS (edukacja + konwersja) > Product Description (konwersja / kontekst; także poza Amazonem, np. Google).
+- Tytuł (seoTitle): ~80–120 znaków; w apce mobilnej często widać ~70–80 znaków — USP i najważniejsza korzyść NA POCZĄTKU. Exact match kluczowej frazy w tytule ma zwykle mocniejszy sygnał niż rozrzucenie tych samych słów tylko w bulletach.
+- Pole "shortDescription" w JSON = dokładnie 5 linii jak 5 Bullet Points Amazon:
+  • Każda linia = jeden bullet; zacznij od HOOKA W DUŻYCH LITERACH (krótka etykieta korzyści po polsku, np. „WIĘCEJ MIEJSCA NA KLOCKI:”), potem w tej samej linii: funkcja / cecha z danych + realny efekt dla użytkownika (nie sam przymiotnik).
+  • W każdym bullet: co dostaje kupujący i dlaczego to ma znaczenie (bez powtórzeń między liniami).
+  • Zakaz: lania wody, powtórzeń, „marketingowego bełkotu”, fraz typu „idealny dla każdego”, pustych haseł („wysoka jakość”, „komfortowy”) bez osadzenia w faktach z cech.
+  • Konkrety liczbowe (%, mm, szt., waga) TYLKO jeśli wynikają z NAZWY lub CECH — bez domyślania metryk.
+  • Styl: dynamiczny, sprzedażowy, prosty język; maksymalna klarowność.
+- Pole "longDescription": HTML (Product Description) — sekcje pod skanowanie (h2, listy), jedna spójna narracja; nie duplikuj 1:1 treści bulletów; możesz rozwinąć scenariusze użycia wyłącznie na podstawie cech. A+: tekst na grafikach nie indeksuje się jak zwykły opis; Alt w modułach A+ bywa indeksowany — bez spamu.
+- Tagi w JSON: propozycje pod Backend Search Terms — nie kopiuj 1:1 fraz z tytułu i bulletów. Limit ~249 BAJTÓW UTF-8 (ogonki PL często 2 bajty); przekroczenie o 1 bajt może skasować CAŁE pole. Słowa pojedynczą spacją, bez zbędnej interpunkcji.
+- Nie wymyślaj wartości Backend Keywords — w qualityTips możesz przypomnieć o limicie bajtów i wpisaniu w panelu.
+- Meta w JSON: pomocnicza; snippet pod Google często generuje się automatycznie.
 ` : ""}${profile.slug === "shoper" ? `
 KONTEKST SHOPER (panel sklepu vs Google vs feedy):
 - Baza: nazwa produktu w Shoper do 255 znaków; w Google widzisz krótszy tytuł — pole „seoTitle” w JSON traktuj jak propozycję meta title do zakładki Pozycjonowanie (cel ~60–70 znaków, mocne słowo na początku), nie jak pełną nazwę sklepową.
@@ -146,23 +179,23 @@ Zastosuj powyższy Brand Voice zamiast standardowego tonu. Zachowaj spójność 
 
 ${buildQualityScoring(profile)}
 
+${shortFieldOff ? `- Pole "shortDescription" w JSON musi być dokładnie "" (pusty string).\n` : ""}${metaFieldOff ? `- Pole "metaDescription" w JSON musi być dokładnie "" (pusty string).\n` : ""}
 Odpowiedz WYŁĄCZNIE czystym JSON (bez markdown, bez code blocks):
 {
   "seoTitle": "tytuł max ${profile.titleMaxChars} znaków",
-  "shortDescription": "2-3 zdania sprzedażowe (max ${profile.charLimits.shortDesc || 250} znaków)",
+  ${shortJsonLine},
   "longDescription": "rozbudowany ${profile.descriptionFormat === "html" ? "HTML" : "tekst"} opis min ${profile.charLimits.longDescMinWords} słów${profile.descriptionFormat === "html" ? " z h2, h3, p, ul, li, strong" : ""}",
   "tags": ${profile.slug === "etsy"
     ? '["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10", "tag11", "tag12", "tag13"]'
     : profile.slug === "vinted"
       ? '["#tag1", "#tag2", "#tag3", "#tag4", "#tag5", "#tag6"]'
     : '["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"]'},
-  "metaDescription": "meta opis max ${profile.charLimits.metaDesc || 160} znaków",
+  ${metaJsonLine},
   "qualityScore": 87,
   "qualityTips": [
     {"type": "success", "text": "Tytuł zawiera główne słowo kluczowe", "points": 15},
     {"type": "success", "text": "Opis używa języka korzyści", "points": 15},
-    {"type": "warning", "text": "Dodaj więcej wariantów słów kluczowych", "points": 8},
-    {"type": "success", "text": "Opis krótki zawiera CTA (np. Dodaj do koszyka)", "points": 10}
+    {"type": "success", "text": "Struktura i limity platformy są zachowane", "points": 15}
   ]
 }`
 }
@@ -219,11 +252,15 @@ function buildPlatformBlock(p: PlatformProfile): string {
 }
 
 function buildQualityScoring(p: PlatformProfile): string {
+  const shortM = effectiveCharMax(p.charLimits.shortDesc, 250)
+  const metaM = effectiveCharMax(p.charLimits.metaDesc, 160)
+  const metaShopify = effectiveCharMax(p.charLimits.metaDesc, 155)
+
   const platformExtra =
     p.slug === "allegro"
-      ? `- ALLEGRO: Nie karz za „brak SEO z opisu w Allegro” — oceniaj tytuł (50 zn.) i merytorykę; jeśli NAZWA była długa, tytuł musi wyglądać na świadomy skrót (Smart Trimming), nie na ucięty tekst; możesz przypomnieć o parametrach w Sellerze.\n`
+      ? `- ALLEGRO: Nie karz za „brak SEO z opisu w Allegro” — oceniaj tytuł (75 zn.) i merytorykę; jeśli NAZWA była długa, tytuł musi wyglądać na świadomy skrót (Smart Trimming), nie na ucięty tekst; możesz przypomnieć o parametrach w Sellerze.\n- ALLEGRO (CRO): premiuj konkret, skanowalność; pierwszy blok opisu długiego (pole longDescription) = hook w <p> przed pierwszym <h2> (+bonus); sekcja „Najważniejsze cechy” = 5-7 punktów benefit-driven (fakt → efekt dla kupującego), nie sucha specyfikacja; 1 zdanie „dlaczego ten produkt vs inne”, mikro-CTA w środku i mocne CTA na końcu. Ostrzeżenie (warning) jeśli brak hooka przed h2 lub punkty „tylko techniczne” bez efektu.\n`
       : p.slug === "amazon"
-        ? `- AMAZON: Oceń tytuł (~80–120 zn., USP na początku — w apce często widać ~70–80 zn.); exact match kluczowej frazy w tytule; 5 Bullet Points w shortDescription; brak zbędnych duplikatów; Backend w panelu ~249 BAJTÓW UTF-8 (ogonki PL zwykle 2 bajty; przekroczenie może skasować całe pole; bez przecinków, słowa spacją).\n`
+        ? `- AMAZON: Konwersja > samo SEO; tytuł (~80–120 zn., USP na początku); 5 bulletów w shortDescription — każda linia: HOOK W CAPS + funkcja/cecha + efekt; bez bełkotu i powtórzeń; longDescription HTML bez duplikatu bulletów 1:1; Backend w panelu ~249 B UTF-8.\n`
         : p.slug === "shoper"
           ? `- SHOPER: „seoTitle” jak meta title do panelu (~60–70 zn.); shortDescription = plain text, bez duplikacji 1:1 z longDescription; przypomnij o atrybutach (EAN, marka) w sklepie, bez wymyślania kodów.\n`
           : p.slug === "woocommerce"
@@ -245,19 +282,23 @@ function buildQualityScoring(p: PlatformProfile): string {
                           : ""
 
   const shortDescRule =
-    p.slug === "allegro"
-      ? `- „Opis krótki” (pole JSON): treść pomocnicza — nie jest polem systemowym Allegro (+10 pkt)\n`
-      : p.slug === "amazon"
-        ? `- „Opis krótki” (pole JSON): treść zbliżona do 5 Bullet Points Amazon — każdy punkt w osobnej linii, od korzyści (+15 pkt)\n`
-        : p.slug === "shoper"
-          ? `- „Opis krótki” (pole JSON): plain text bez HTML, max ${p.charLimits.shortDesc} zn.; nie powielaj zdań z opisu długiego (+15 pkt)\n`
-          : p.slug === "shopify"
-            ? `- „Opis krótki” (pole JSON): jak excerpt / krótki opis Shopify, max ${p.charLimits.shortDesc} zn., hook + korzyść (+12 pkt)\n`
-            : `- Opis krótki: 2-3 zdania, hook + korzyść + CTA (+10 pkt)\n`
+    shortM === 0
+      ? `- „Opis krótki” (pole JSON): dla tej platformy nieużywany — zwróć "" (+0 pkt za to pole; nie oceniaj CTA)\n`
+      : p.slug === "allegro"
+        ? `- „Opis krótki” (pole JSON): treść pomocnicza — nie jest polem systemowym Allegro (+10 pkt)\n`
+        : p.slug === "amazon"
+          ? `- „Opis krótki” (pole JSON): 5 linii = 5 Bullet Points — każda linia zaczyna się od HOOKA W DUŻYCH LITERACH, potem funkcja z danych + efekt dla kupującego; bez powtórzeń i pustych sloganów (+15 pkt); NIE wymagaj CTA sklepowego w tym polu\n`
+          : p.slug === "shoper"
+            ? `- „Opis krótki” (pole JSON): plain text bez HTML, max ${p.charLimits.shortDesc} zn.; nie powielaj zdań z opisu długiego (+15 pkt)\n`
+            : p.slug === "shopify"
+              ? `- „Opis krótki” (pole JSON): jak excerpt / krótki opis Shopify, max ${p.charLimits.shortDesc} zn., hook + korzyść (+12 pkt)\n`
+              : p.slug === "vinted" || p.slug === "olx"
+                ? `- Opis krótki: konkret i stan; bez CTA sklepowego i bez linków (+10 pkt)\n`
+                : `- Opis krótki: 2-3 zdania, hook + korzyść + CTA (+10 pkt)\n`
 
   const longDescRule =
     p.slug === "allegro"
-      ? `- Opis długi: min ${p.charLimits.longDescMinWords} słów (cel jakości / Google), ${p.descriptionFormat === "html" ? "HTML" : "tekst"} (+25 pkt) — Allegro nie wymaga minimum słów technicznie\n`
+      ? `- Opis długi: min ${p.charLimits.longDescMinWords} słów (cel jakości / Google), ${p.descriptionFormat === "html" ? "HTML" : "tekst"} (+25 pkt) — Allegro nie wymaga minimum słów technicznie; w HTML: otwarcie hookiem w <p> przed pierwszym h2, potem „Najważniejsze cechy” z punktami benefit-driven (fakt + efekt) — ujemne punkty przy samym suchym katalogu cech bez hooka\n`
       : p.slug === "amazon"
         ? `- Opis długi: min ${p.charLimits.longDescMinWords} słów (cel redakcyjny; Amazon nie wymaga 200 słów), ${p.descriptionFormat === "html" ? "HTML" : "tekst"} (+25 pkt) — dla A9 zwykle niżej niż tytuł/backend/bullety; ważny dla Google i konwersji; przy A+ Alt Text na obrazkach bywa indeksowany\n`
         : p.slug === "shoper"
@@ -273,11 +314,13 @@ function buildQualityScoring(p: PlatformProfile): string {
                   : `- Opis długi: min ${p.charLimits.longDescMinWords} słów, ${p.descriptionFormat === "html" ? "HTML, min 2x h2, min 1x ul" : "czytelne akapity"} (+25 pkt)\n`
 
   const metaRule =
-    p.slug === "allegro" || p.slug === "amazon"
-      ? `- Meta (pole JSON): max ${p.charLimits.metaDesc || 160} zn. (+10 pkt) — treść pomocnicza; marketplace często generuje snippet sam\n`
-      : p.slug === "shopify"
-        ? `- Meta: max ${p.charLimits.metaDesc || 155} zn. (limit Shopify / SERP), keyword + CTA (+10 pkt)\n`
-        : `- Meta: max ${p.charLimits.metaDesc || 160} znaków, keyword + CTA (+10 pkt)\n`
+    metaM === 0
+      ? `- Meta (pole JSON): dla tej platformy nieużywane — zwróć "" (+0 pkt)\n`
+      : p.slug === "allegro" || p.slug === "amazon"
+        ? `- Meta (pole JSON): max ${metaM} zn. (+10 pkt) — treść pomocnicza; marketplace często generuje snippet sam\n`
+        : p.slug === "shopify"
+          ? `- Meta: max ${metaShopify} zn. (limit Shopify / SERP), keyword + CTA (+10 pkt)\n`
+          : `- Meta: max ${metaM} znaków, keyword + CTA (+10 pkt)\n`
 
   const tagRule =
     p.slug === "etsy"
@@ -286,7 +329,14 @@ function buildQualityScoring(p: PlatformProfile): string {
         ? `- Hashtagi: 5-8 sztuk, najlepiej na końcu opisu i w polu tags, każdy z prefiksem # (+15 pkt)\n`
       : `- Tagi: 8-12 tagów, bez bezsensownego powtarzania tych samych fraz co w tytule${p.slug === "amazon" ? " (oszczędzaj miejsce na synonimy / backend)" : ""} (+15 pkt)\n`
 
-  const ctaScoringNote = `- CTA w „shortDescription”: uznaj za spełnione, jeśli jest któraś z fraz (warianty pisowni OK): dodaj do koszyka, zamów teraz, kup teraz, wybierz teraz, złóż zamówienie, sprawdź w ofercie, kup online, przejdź do zakupu — także z wykrzyknikiem; NIE zgłaszaj wtedy błędu „Brak wezwania do działania” (+10 pkt wewnętrznie)\n`
+  const ctaScoringNote =
+    shortM === 0
+      ? `- Nie oceniaj „braku CTA” w shortDescription — pole jest puste zgodnie z platformą.\n`
+      : p.slug === "amazon"
+        ? `- Amazon: w shortDescription oczekuj 5 Bullet Points (korzyści); NIE traktuj braku fraz typu „Dodaj do koszyka” jako błąd CTA (+10 pkt wewnętrznie)\n`
+        : p.slug === "vinted" || p.slug === "olx"
+          ? `- Vinted/OLX: nie wymagaj CTA sklepowego (koszyk); NIE zgłaszaj „Brak CTA” w sensie e‑sklepu (+10 pkt wewnętrznie)\n`
+          : `- CTA w „shortDescription”: uznaj za spełnione, jeśli jest któraś z fraz (warianty pisowni OK): dodaj do koszyka, zamów teraz, kup teraz, wybierz teraz, złóż zamówienie, sprawdź w ofercie, kup online, przejdź do zakupu — także z wykrzyknikiem; NIE zgłaszaj wtedy błędu „Brak wezwania do działania” (+10 pkt wewnętrznie)\n`
 
   return `QUALITY SCORING — oceń swój opis (platforma: ${p.name}):
 - Tytuł SEO: mieści się w ${p.titleMaxChars} znakach, mocne słowa na początku (+15 pkt)

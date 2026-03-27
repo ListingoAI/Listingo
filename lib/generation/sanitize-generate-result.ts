@@ -1,5 +1,9 @@
 import { countWordsFromHtml } from "@/lib/generation/count-words-html"
 import { optimizeEbayTitle } from "@/lib/generation/ebay-title-optimizer"
+import {
+  effectiveCharMax,
+  fitAmazonBackendSearchTerms,
+} from "@/lib/generation/platform-char-limits"
 import type { PlatformProfile } from "@/lib/platforms"
 import type { QualityTip } from "@/lib/types"
 
@@ -11,6 +15,67 @@ function truncateSmart(s: string, max: number): string {
   const base =
     lastSpace > max * 0.5 ? slice.slice(0, lastSpace) : slice
   return `${base}…`
+}
+
+/**
+ * Awaryjny smart trim tytułu (bez brutalnego cięcia środka słowa).
+ * Używany, gdy model przekroczył limit znaków.
+ */
+function emergencySmartTrimTitle(title: string, max: number): string {
+  const normalized = title.replace(/\s+/g, " ").trim()
+  if (normalized.length <= max) return normalized
+
+  let work = normalized
+    .replace(/\s*\|\s*/g, " ")
+    .replace(/\s*[-–—]\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+  if (work.length <= max) return work
+
+  const rawTokens = work.split(" ").filter(Boolean)
+  const deduped: string[] = []
+  const seen = new Set<string>()
+  for (const t of rawTokens) {
+    const k = t.toLowerCase()
+    if (seen.has(k)) continue
+    seen.add(k)
+    deduped.push(t)
+  }
+  work = deduped.join(" ")
+  if (work.length <= max) return work
+
+  const stopwords = new Set([
+    "i",
+    "oraz",
+    "z",
+    "ze",
+    "na",
+    "do",
+    "dla",
+    "w",
+    "we",
+    "o",
+    "od",
+    "pod",
+    "przez",
+    "u",
+    "a",
+  ])
+  let tokens = deduped.filter((t, idx) => {
+    if (idx === 0) return true
+    return !stopwords.has(t.toLowerCase())
+  })
+  work = tokens.join(" ")
+  if (work.length <= max) return work
+
+  // Ostatecznie: skracaj od końca całe tokeny, zachowując sens początku.
+  while (tokens.length > 3 && tokens.join(" ").length > max) {
+    tokens.pop()
+  }
+  work = tokens.join(" ")
+  if (work.length <= max) return work
+
+  return truncateSmart(work, max)
 }
 
 function parseQualityTipsRaw(raw: unknown): QualityTip[] {
@@ -46,6 +111,62 @@ function stripHtmlToPlainText(s: string): string {
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
     .trim()
+}
+
+function countWordsPlainFromHtml(html: string): number {
+  const t = stripHtmlToPlainText(html)
+  if (!t) return 0
+  return t.split(/\s+/).filter(Boolean).length
+}
+
+/**
+ * Wykrywa sytuację, gdy tekst po odsianiu HTML to dokładnie ta sama sekwencja słów powtórzona 2×
+ * (typowy błąd modelu — „podwójny” opis).
+ */
+function isDuplicateWordHalves(html: string): boolean {
+  const plain = stripHtmlToPlainText(html).replace(/\s+/g, " ").trim()
+  if (plain.length < 200) return false
+  const words = plain.split(" ").filter(Boolean)
+  if (words.length < 40 || words.length % 2 !== 0) return false
+  const h = words.length / 2
+  for (let i = 0; i < h; i++) {
+    if (words[i] !== words[h + i]) return false
+  }
+  return true
+}
+
+/**
+ * Próbuje uciąć HTML do pierwszej połowy słów (gdy isDuplicateWordHalves).
+ * Zwraca null, gdy nie da się bezpiecznie przytnąć.
+ */
+function tryTrimHtmlAfterFirstHalfWords(html: string): string | null {
+  const plain = stripHtmlToPlainText(html).replace(/\s+/g, " ").trim()
+  const words = plain.split(" ").filter(Boolean)
+  if (words.length < 40 || words.length % 2 !== 0) return null
+  const h = words.length / 2
+  for (let i = 0; i < h; i++) {
+    if (words[i] !== words[h + i]) return null
+  }
+
+  let lo = 0
+  let hi = html.length
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi + 1) / 2)
+    const w = countWordsPlainFromHtml(html.slice(0, mid))
+    if (w <= h) lo = mid
+    else hi = mid - 1
+  }
+  let cut = lo
+  const lastLt = html.lastIndexOf("<", cut)
+  const lastGt = html.lastIndexOf(">", cut)
+  if (lastLt !== -1 && lastGt !== -1 && lastLt > lastGt) {
+    cut = lastLt
+  }
+  const trimmed = html.slice(0, cut).trimEnd()
+  if (trimmed.length < 80) return null
+  const afterWords = countWordsPlainFromHtml(trimmed)
+  if (afterWords < h * 0.85 || afterWords > h * 1.15) return null
+  return trimmed
 }
 
 function dedupePreserveOrder(values: string[]): string[] {
@@ -161,17 +282,36 @@ export function sanitizeGenerateResult(
     }
   }
   if (seoTitle.length > profile.titleMaxChars) {
-    extraTips.push({
-      type: "warning",
-      text: `Tytuł przekroczył limit — zastosowano awaryjne skrócenie do ${profile.titleMaxChars} znaków (${profile.name}). Docelowo powinien być Smart Trimming w odpowiedzi modelu; spróbuj wygenerować ponownie.`,
-      points: 5,
-    })
-    seoTitle = truncateSmart(seoTitle, profile.titleMaxChars)
+    const trimmed = emergencySmartTrimTitle(seoTitle, profile.titleMaxChars)
+    if (trimmed.length <= profile.titleMaxChars) {
+      seoTitle = trimmed
+      extraTips.push({
+        type: "warning",
+        text: `Tytuł przekroczył limit — zastosowano awaryjny Smart Trimming do ${profile.titleMaxChars} znaków (${profile.name}), bez urywania losowej końcówki.`,
+        points: 4,
+      })
+    } else {
+      extraTips.push({
+        type: "warning",
+        text: `Tytuł przekroczył limit — zastosowano awaryjne skrócenie do ${profile.titleMaxChars} znaków (${profile.name}). Docelowo powinien być Smart Trimming w odpowiedzi modelu; spróbuj wygenerować ponownie.`,
+        points: 5,
+      })
+      seoTitle = truncateSmart(seoTitle, profile.titleMaxChars)
+    }
   }
 
-  const shortMax = profile.charLimits.shortDesc || 250
+  const shortMax = effectiveCharMax(profile.charLimits.shortDesc, 250)
   let shortDescription = String(raw.shortDescription ?? "").trim()
-  if (profile.slug === "shoper" && shortDescription && /<[^>]+>/.test(shortDescription)) {
+  if (shortMax === 0) {
+    if (shortDescription.length > 0) {
+      extraTips.push({
+        type: "success",
+        text: `${profile.name}: pole „opis krótki” nie jest używane na tej platformie — wyczyszczono treść.`,
+        points: 1,
+      })
+    }
+    shortDescription = ""
+  } else if (profile.slug === "shoper" && shortDescription && /<[^>]+>/.test(shortDescription)) {
     const plain = stripHtmlToPlainText(shortDescription)
     extraTips.push({
       type: "warning",
@@ -188,7 +328,7 @@ export function sanitizeGenerateResult(
       points: 3,
     })
   }
-  if (shortDescription.length > shortMax) {
+  if (shortMax > 0 && shortDescription.length > shortMax) {
     extraTips.push({
       type: "warning",
       text: `Opis krótki skrócono do ${shortMax} znaków (limit ${profile.name}).`,
@@ -214,6 +354,25 @@ export function sanitizeGenerateResult(
       points: 4,
     })
   }
+
+  if (profile.descriptionFormat === "html" && isDuplicateWordHalves(longDescription)) {
+    const repaired = tryTrimHtmlAfterFirstHalfWords(longDescription)
+    if (repaired) {
+      longDescription = repaired
+      extraTips.push({
+        type: "warning",
+        text: "Wykryto podwójne powtórzenie całego opisu w HTML — zastosowano automatyczne usunięcie drugiej kopii. Sprawdź podgląd; w razie potrzeby wygeneruj opis ponownie.",
+        points: 10,
+      })
+    } else {
+      extraTips.push({
+        type: "warning",
+        text: "Treść opisu długiego wygląda na wklejoną dwukrotnie (ta sama sekwencja słów). Usuń duplikat ręcznie lub wygeneruj ponownie — powielenie wygląda nieprofesjonalnie.",
+        points: 10,
+      })
+    }
+  }
+
   const minWords = profile.charLimits.longDescMinWords
   const wc = countWordsFromHtml(longDescription)
   if (longDescription.trim().length > 0 && wc < minWords) {
@@ -242,9 +401,22 @@ export function sanitizeGenerateResult(
     })
   }
 
-  const metaMax = profile.charLimits.metaDesc || 160
+  const metaMax = effectiveCharMax(profile.charLimits.metaDesc, 160)
   let metaDescription = String(raw.metaDescription ?? "").trim()
-  if (profile.slug === "etsy" && !metaDescription && longDescription.trim()) {
+  if (metaMax === 0) {
+    if (metaDescription.length > 0) {
+      extraTips.push({
+        type: "success",
+        text: `${profile.name}: pole meta description nie jest używane na tej platformie — wyczyszczono treść.`,
+        points: 1,
+      })
+    }
+    metaDescription = ""
+  } else if (
+    profile.slug === "etsy" &&
+    !metaDescription &&
+    longDescription.trim()
+  ) {
     metaDescription = truncateSmart(stripHtmlToPlainText(longDescription), metaMax)
     extraTips.push({
       type: "success",
@@ -252,7 +424,7 @@ export function sanitizeGenerateResult(
       points: 2,
     })
   }
-  if (metaDescription.length > metaMax) {
+  if (metaMax > 0 && metaDescription.length > metaMax) {
     extraTips.push({
       type: "warning",
       text: `Meta description skrócono do ${metaMax} znaków.`,
@@ -274,6 +446,31 @@ export function sanitizeGenerateResult(
   tags = tags.map((t) => truncateSmart(t, tagMaxLength)).slice(0, tagMaxCount)
   if (profile.slug === "vinted") {
     tags = tags.map((t) => (t.startsWith("#") ? t : `#${t}`))
+  }
+  if (profile.slug === "amazon" && tags.length > 0) {
+    const fit = fitAmazonBackendSearchTerms(tags)
+    tags = fit.tags
+    if (tags.length === 0) {
+      extraTips.push({
+        type: "warning",
+        text:
+          "Amazon: nie udało się zachować fraz w tags pod limit ~249 bajtów UTF-8 — uzupełnij Backend Search Terms ręcznie w panelu.",
+        points: 5,
+      })
+    } else if (fit.trimmed) {
+      extraTips.push({
+        type: "warning",
+        text:
+          "Amazon: zestaw fraz (tags) dopasowano do limitu ~249 bajtów UTF-8 (Backend Search Terms). Skrócono lub usunięto końcowe frazy, aby Seller Central nie odrzucił całego pola.",
+        points: 4,
+      })
+    } else {
+      extraTips.push({
+        type: "success",
+        text: `Amazon: Backend Search Terms (łącznie) ~${fit.joinedBytes}/249 bajtów UTF-8.`,
+        points: 2,
+      })
+    }
   }
   if (profile.slug === "etsy" && tags.length > 0 && tags.length < 13) {
     extraTips.push({
@@ -320,15 +517,6 @@ export function sanitizeGenerateResult(
       points: 5,
     })
     qualityScore = Math.min(100, qualityScore + 5)
-  }
-
-  const hasNegativeTip = qualityTips.some(
-    (t) => t.type === "warning" || t.type === "error"
-  )
-  const belowLongMinWords =
-    longDescription.trim().length > 0 && wc < minWords
-  if (!hasNegativeTip && qualityTips.length > 0 && !belowLongMinWords) {
-    qualityScore = 100
   }
 
   return {

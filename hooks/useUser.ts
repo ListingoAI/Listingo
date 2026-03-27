@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/lib/types'
 import type { User } from '@supabase/supabase-js'
@@ -10,9 +10,8 @@ export function useUser() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const supabase = createClient()
-
-  async function fetchProfile(userId: string) {
+  const fetchProfile = useCallback(async (userId: string) => {
+    const supabase = createClient()
     const { data } = await supabase
       .from('profiles')
       .select('*')
@@ -22,15 +21,17 @@ export function useUser() {
     if (data) {
       setProfile(data as Profile)
     }
-  }
+  }, [])
 
-  async function refreshProfile() {
+  const refreshProfile = useCallback(async () => {
     if (user) {
       await fetchProfile(user.id)
     }
-  }
+  }, [user, fetchProfile])
 
   useEffect(() => {
+    const supabase = createClient()
+
     async function init() {
       try {
         const { data: { user: currentUser } } = await supabase.auth.getUser()
@@ -46,7 +47,7 @@ export function useUser() {
       }
     }
 
-    init()
+    void init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -64,7 +65,7 @@ export function useUser() {
     return () => {
       subscription.unsubscribe()
     }
-  }, [])
+  }, [fetchProfile])
 
   return {
     user,

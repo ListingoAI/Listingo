@@ -44,7 +44,7 @@ const allegro: PlatformProfile = {
   name: "Allegro",
   icon: "🛒",
   locale: "pl",
-  titleMaxChars: 50,
+  titleMaxChars: 75,
   titlePattern: "[Produkt] [Materiał/Cecha] [Wariant] | [Marka]",
   descriptionFormat: "html",
   charLimits: { shortDesc: 250, longDescMinWords: 150, metaDesc: 160 },
@@ -59,20 +59,20 @@ const allegro: PlatformProfile = {
     "odniesienia do innych platform sprzedaży",
     "słowa: najtańszy, najlepszy (bez dowodu)",
   ],
-  bestPractices: `- Tytuł oferty: max 50 znaków (każdy znak się liczy). Główną frazę umieść jak najbliżej początku — to najważniejsze pole dla wyszukiwarki Allegro.
+  bestPractices: `- Tytuł oferty: max 75 znaków (limit od września 2023 r.; każdy znak się liczy). Główną frazę umieść jak najbliżej początku — to najważniejsze pole dla wyszukiwarki Allegro.
 - Parametry oferty (atrybuty): krytyczne dla filtrów. Jeśli np. kolor jest tylko w opisie HTML, a nie w parametrach, oferta może nie przejść filtrowania — opis NIE zastępuje parametrów.
 - Opis HTML: służy konwersji (przekonanie do zakupu) oraz SEO w Google. Przy domyślnym sortowaniu po Trafności treść opisu nie indeksuje oferty w Allegro tak jak tytuł i parametry — nie obiecuj kupującemu, że „słowa kluczowe w opisie” podniosą pozycję w wyszukiwarce Allegro.
-- Long-tail pod Allegro: jeśli mieści się w 50 znakach tytułu i w odpowiednich parametrach — nie polegaj wyłącznie na powtarzaniu fraz w opisie pod „SEO Allegro”.
+- Long-tail pod Allegro: umieszczaj frazy w 75-znakowym tytule i w odpowiednich parametrach — nie polegaj wyłącznie na powtarzaniu fraz w opisie pod „SEO Allegro”.
 - Opis: HTML (h2, ul, strong). Sekcje np.: „Dlaczego warto?", „Co otrzymujesz?", „Specyfikacja".
 - Unikaj keyword stuffing w tytule i opisie; naturalny język korzyści.
 - CTA w opisie OK („Dodaj do koszyka") — zgodnie z regulaminem oferty.`,
   exampleTitle: "Plecak Turystyczny 50L Wodoodporny | HikePro",
   seoNotes:
-    "W Allegro dla wyszukiwarki wewnętrznej najważniejsze są tytuł oferty (50 zn.) oraz parametry (filtry). Opis HTML wspiera sprzedaż i może pomagać w widoczności w Google, ale nie zastępuje uzupełnionych parametrów. Google zwykle sam dobiera snippet z tytułu strony i treści oferty; Allegro nie udostępnia osobnego pola „meta description” jak typowy CMS.",
+    "W Allegro dla wyszukiwarki wewnętrznej najważniejsze są tytuł oferty (75 zn.) oraz parametry (filtry). Opis HTML wspiera sprzedaż i może pomagać w widoczności w Google, ale nie zastępuje uzupełnionych parametrów. Google zwykle sam dobiera snippet z tytułu strony i treści oferty; Allegro nie udostępnia osobnego pola „meta description” jak typowy CMS.",
   uiLimitsSummary:
-    "Tytuł oferty: max 50 znaków (limit Allegro). Limity „opis krótki” i „meta” w wyniku generatora to teksty pomocnicze (np. eksport, Google), a nie natywne pola SEO Allegro. Długi opis: zalecana objętość pod konwersję i SEO Google; Allegro nie wymaga minimalnej liczby słów w opisie, by wystawić ofertę.",
+    "Tytuł oferty: max 75 znaków (limit Allegro od września 2023). Limity „opis krótki” i „meta” w wyniku generatora to teksty pomocnicze (np. eksport, Google), a nie natywne pola SEO Allegro. Długi opis: zalecana objętość pod konwersję i SEO Google; Allegro nie wymaga minimalnej liczby słów w opisie, by wystawić ofertę.",
   uiKeyPoints: [
-    "Tytuł oferty: max 50 znaków — najważniejsze słowa na początku.",
+    "Tytuł oferty: max 75 znaków — najważniejsze słowa na początku.",
     "W wyszukiwarce Allegro liczą się tytuł i parametry (filtry), nie „SEO z opisu”.",
     "„Opis krótki” / „meta” w wyniku to pomoc pod eksport / Google — nie jak meta w CMS.",
   ],

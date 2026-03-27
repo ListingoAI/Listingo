@@ -23,7 +23,7 @@ import { isProOrScale } from "@/lib/plans"
 import { buildQualityRefinementInstruction } from "@/lib/generation/build-quality-refinement-instruction"
 import { countWordsFromHtml } from "@/lib/generation/count-words-html"
 import { createClient } from "@/lib/supabase/client"
-import type { GenerateResponse } from "@/lib/types"
+import type { GenerateRequest, GenerateResponse, ProductImageEntry } from "@/lib/types"
 import { cn, copyToClipboard } from "@/lib/utils"
 
 import type React from "react"
@@ -63,6 +63,7 @@ function GeneratePageContent() {
   const [productName, setProductName] = useState("")
   const [category, setCategory] = useState("")
   const [features, setFeatures] = useState("")
+  const [productImages, setProductImages] = useState<ProductImageEntry[]>([])
   const [platform, setPlatform] = useState("allegro")
   const [tone, setTone] = useState("profesjonalny")
   const [useBrandVoice, setUseBrandVoice] = useState(false)
@@ -70,6 +71,8 @@ function GeneratePageContent() {
   const [loading, setLoading] = useState(false)
   const [loadingStep, setLoadingStep] = useState(0)
   const [result, setResult] = useState<GenerateResponse | null>(null)
+  /** Jedno dopracowanie „do 100” na wygenerowany opis; reset przy nowej generacji. */
+  const [refineAlreadyUsed, setRefineAlreadyUsed] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [error, setError] = useState("")
   /* eslint-disable @typescript-eslint/no-explicit-any -- wyniki API social-media / price-advisor */
@@ -123,7 +126,9 @@ function GeneratePageContent() {
   }, [profile])
 
   const handleGenerate = useCallback(async () => {
-    if (!productName.trim() || !features.trim()) return
+    const hasTextInput = Boolean(productName.trim() || features.trim())
+    const hasImageInput = productImages.length > 0
+    if (!hasTextInput && !hasImageInput) return
 
     const startTime = Date.now()
     setLoading(true)
@@ -138,18 +143,21 @@ function GeneratePageContent() {
     )
 
     try {
+      const payload: GenerateRequest = {
+        productName: productName.trim(),
+        category,
+        features: features.trim(),
+        platform,
+        tone,
+        imageBase64: productImages[0]?.dataUrl.trim() || undefined,
+        brandVoice:
+          useBrandVoice && brandVoiceData ? brandVoiceData : undefined,
+      }
+
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productName: productName.trim(),
-          category,
-          features: features.trim(),
-          platform,
-          tone,
-          brandVoice:
-            useBrandVoice && brandVoiceData ? brandVoiceData : undefined,
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = await response.json()
@@ -194,6 +202,7 @@ function GeneratePageContent() {
     productName,
     category,
     features,
+    productImages,
     platform,
     tone,
     useBrandVoice,
@@ -203,24 +212,34 @@ function GeneratePageContent() {
 
   const handleRefineWithQuality = useCallback(async () => {
     if (!result) return
-    if (!productName.trim()) {
-      toast.error("Wpisz nazwę produktu — jest potrzebna do ulepszenia.")
+    if (refineAlreadyUsed) {
+      toast.error("Dopracowanie można użyć tylko raz na ten opis. Wygeneruj opis ponownie, aby użyć ponownie.")
       return
     }
-    if (!features.trim()) {
-      toast.error(
-        "Wpisz cechy produktu — bez nich ulepszenie AI nie może się wykonać (wymóg API)."
-      )
+    if (!productName.trim() && !features.trim() && productImages.length === 0) {
+      toast.error("Dodaj nazwę, cechy lub zdjęcie produktu przed dopracowaniem.")
       return
     }
 
     const longHtml = result.longDescription ?? ""
     const longWordCount = countWordsFromHtml(longHtml)
+    const longMinWords = result.platformLimits?.longDescMinWords ?? 150
+    const hasNegativeTips = (result.qualityTips ?? []).some((tip) => {
+      if (typeof tip === "string") {
+        try { return (JSON.parse(tip) as { type?: string }).type === "warning" || (JSON.parse(tip) as { type?: string }).type === "error" } catch { return false }
+      }
+      return (tip as { type?: string })?.type === "warning" || (tip as { type?: string })?.type === "error"
+    })
+    const belowLongMin = longWordCount < longMinWords
+
+    const polishHint = !hasNegativeTips && !belowLongMin
+      ? [{ type: "warning" as const, text: "Polish pass: podkręć konwersję i czytelność bez zmiany faktów (mocniejszy hook, skanowalne sekcje, naturalne CTA).", points: 0 }]
+      : []
 
     const instruction = buildQualityRefinementInstruction(
-      result.qualityTips ?? [],
+      [...(result.qualityTips ?? []), ...polishHint] as Parameters<typeof buildQualityRefinementInstruction>[0],
       {
-        longMinWords: result.platformLimits?.longDescMinWords ?? 150,
+        longMinWords,
         longWordCount,
         titleMaxChars: result.platformLimits?.titleMaxChars,
         shortDescMax: result.platformLimits?.shortDescMax,
@@ -234,11 +253,7 @@ function GeneratePageContent() {
     setLoading(true)
     setError("")
     setLoadingStep(0)
-    const stepInterval = setInterval(
-      () =>
-        setLoadingStep((s) => Math.min(s + 1, LOADING_STEPS.length - 1)),
-      3000
-    )
+    const stepInterval = setInterval(() => setLoadingStep((s) => Math.min(s + 1, LOADING_STEPS.length - 1)), 3000)
 
     try {
       const response = await fetch("/api/generate", {
@@ -248,10 +263,10 @@ function GeneratePageContent() {
           productName: productName.trim(),
           category,
           features: features.trim(),
+          imageBase64: productImages[0]?.dataUrl.trim() || undefined,
           platform,
           tone,
-          brandVoice:
-            useBrandVoice && brandVoiceData ? brandVoiceData : undefined,
+          brandVoice: useBrandVoice && brandVoiceData ? brandVoiceData : undefined,
           refinementOf: {
             seoTitle: result.seoTitle,
             shortDescription: result.shortDescription,
@@ -266,36 +281,32 @@ function GeneratePageContent() {
       const data = await response.json()
 
       if (!response.ok) {
-        if (response.status === 403) {
-          setError(
-            "Wykorzystałeś limit opisów w tym miesiącu. Przejdź na wyższy plan."
-          )
-        } else {
-          setError(data.error || "Wystąpił błąd. Spróbuj ponownie.")
-        }
+        const msg =
+          response.status === 403
+            ? (typeof data?.error === "string" && data.error.trim()) || "Limit opisów wyczerpany."
+            : (typeof data?.error === "string" && data.error.trim()) || "Wystąpił błąd. Spróbuj ponownie."
+        setError(msg)
+        toast.error(msg)
         return
       }
 
       const typed = data as GenerateResponse
       setResult(typed)
+      setRefineAlreadyUsed(true)
 
       if (typed.qualityScore >= 85) {
         import("canvas-confetti").then((confetti) => {
-          confetti.default({
-            particleCount: 80,
-            spread: 60,
-            origin: { y: 0.7 },
-            colors: ["#10B981", "#34D399", "#6EE7B7"],
-          })
+          confetti.default({ particleCount: 80, spread: 60, origin: { y: 0.7 }, colors: ["#10B981", "#34D399", "#6EE7B7"] })
         })
       }
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1)
-      toast.success(`✨ Opis ulepszony w ${duration}s — zużyto 1 kredyt.`)
-
+      toast.success(`✨ Dopracowano w ${duration}s — zużyto 1 kredyt.`)
       await refreshProfile()
-    } catch {
-      setError("Błąd połączenia. Sprawdź internet i spróbuj ponownie.")
+    } catch (err) {
+      const msg = err instanceof Error && err.message ? err.message : "Błąd połączenia."
+      setError(msg)
+      toast.error(msg)
     } finally {
       clearInterval(stepInterval)
       setLoadingStep(0)
@@ -303,9 +314,11 @@ function GeneratePageContent() {
     }
   }, [
     result,
+    refineAlreadyUsed,
     productName,
     category,
     features,
+    productImages,
     platform,
     tone,
     useBrandVoice,
@@ -498,6 +511,9 @@ function GeneratePageContent() {
           setCategory={setCategory}
           features={features}
           setFeatures={setFeatures}
+          productImages={productImages}
+          setProductImages={setProductImages}
+          refreshProfile={refreshProfile}
           platform={platform}
           setPlatform={setPlatform}
           tone={tone}
@@ -510,6 +526,7 @@ function GeneratePageContent() {
           loadingMessages={LOADING_STEPS}
           handleGenerate={handleGenerate}
           handleRefineQuality={handleRefineWithQuality}
+          refineAlreadyUsed={refineAlreadyUsed}
           result={result}
           showPreview={showPreview}
           setShowPreview={setShowPreview}

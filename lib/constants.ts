@@ -3,7 +3,14 @@
  * Generator opisów używa pełnych kategorii Allegro — zob. data/allegro-categories.json
  */
 export const CATEGORIES = [
-  { value: "odziez", label: "👕 Odzież i akcesoria" },
+  { value: "moda_meska", label: "👔 Moda męska" },
+  { value: "moda_damska", label: "👗 Moda damska" },
+  { value: "moda_dziecieca", label: "🧒 Moda dziecięca" },
+  { value: "obuwie", label: "👟 Obuwie" },
+  { value: "bielizna", label: "🩱 Bielizna i stroje kąpielowe" },
+  { value: "akcesoria_modowe", label: "🧢 Akcesoria modowe" },
+  /** Legacy / gdy brak pewnej podkategorii */
+  { value: "odziez", label: "👕 Moda (ogólne)" },
   { value: "elektronika", label: "📱 Elektronika" },
   { value: "dom", label: "🏠 Dom i ogród" },
   { value: "zdrowie", label: "💊 Zdrowie i uroda" },

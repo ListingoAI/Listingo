@@ -9,6 +9,7 @@ import {
   rankLeavesByInputOverlap,
   suggestTopCandidates,
 } from "@/lib/allegro/category-store"
+import { generateCustomCategoryLabel } from "@/lib/allegro/suggest-custom-label"
 import { pickBestCategoryAI, pickMainBranchAI } from "@/lib/allegro/suggest-ai"
 import type { AllegroLeafCategory } from "@/lib/allegro/types"
 import {
@@ -16,6 +17,7 @@ import {
   checkRateLimit,
   getCached,
   logUsage,
+  patchCacheHint,
   setCache,
 } from "@/lib/allegro/suggest-limiter"
 
@@ -113,13 +115,22 @@ export async function POST(req: Request) {
     const key = cacheKey(productName, features)
     const cached = getCached(key)
     if (cached) {
+      let hint = cached.customCategoryHint
+      if (!hint) {
+        const gen = await generateCustomCategoryLabel(productName, features)
+        if (gen) {
+          hint = gen
+          patchCacheHint(key, gen)
+        }
+      }
       logUsage({ userId: user.id, ip, plan, source: "cache", ms: Date.now() - t0 })
       return NextResponse.json({
         ok: true,
-        confidence: "high",
+        confidence: cached.confidence,
         source: "cache",
         suggestion: leafToJson(cached.leaf),
         candidates: [],
+        ...(hint ? { customCategoryHint: hint } : {}),
       })
     }
 
@@ -140,6 +151,7 @@ export async function POST(req: Request) {
       }))
       const mainId = await pickMainBranchAI(productName, features, roots)
       if (!mainId) {
+        const hint = await generateCustomCategoryLabel(productName, features)
         logUsage({
           userId: user.id,
           ip,
@@ -153,11 +165,13 @@ export async function POST(req: Request) {
           source: "heuristic",
           suggestion: null,
           candidates: [],
+          ...(hint ? { customCategoryHint: hint } : {}),
         })
       }
 
       let under = getLeavesUnderMainCategory(mainId)
       if (under.length === 0) {
+        const hint = await generateCustomCategoryLabel(productName, features)
         logUsage({
           userId: user.id,
           ip,
@@ -171,6 +185,7 @@ export async function POST(req: Request) {
           source: "heuristic",
           suggestion: null,
           candidates: [],
+          ...(hint ? { customCategoryHint: hint } : {}),
         })
       }
 
@@ -187,10 +202,13 @@ export async function POST(req: Request) {
         .slice(0, CANDIDATES_LIMIT)
         .map((l) => leafToJson(l))
 
-      const aiPick = await pickBestCategoryAI(productName, features, under)
+      const [aiPick, customHint] = await Promise.all([
+        pickBestCategoryAI(productName, features, under),
+        generateCustomCategoryLabel(productName, features),
+      ])
 
       if (aiPick) {
-        setCache(key, aiPick, "ai")
+        setCache(key, aiPick, "ai", "high", customHint ?? undefined)
         logUsage({ userId: user.id, ip, plan, source: "ai", ms: Date.now() - t0 })
         return NextResponse.json({
           ok: true,
@@ -198,6 +216,7 @@ export async function POST(req: Request) {
           source: "ai",
           suggestion: leafToJson(aiPick),
           candidates: topCandidates,
+          ...(customHint ? { customCategoryHint: customHint } : {}),
         })
       }
 
@@ -214,6 +233,7 @@ export async function POST(req: Request) {
         source: "heuristic",
         suggestion: null,
         candidates: topCandidates,
+        ...(customHint ? { customCategoryHint: customHint } : {}),
       })
     }
 
@@ -237,7 +257,7 @@ export async function POST(req: Request) {
     // Pewny zwycięzca heurystyki (tylko gdy heurystyka coś znalazła)
     if (clearWinner && heuristicScored.length > 0) {
       const leaf = heuristicScored[0].leaf
-      setCache(key, leaf, "heuristic")
+      setCache(key, leaf, "heuristic", "high")
       logUsage({ userId: user.id, ip, plan, source: "heuristic", ms: Date.now() - t0 })
       return NextResponse.json({
         ok: true,
@@ -256,10 +276,13 @@ export async function POST(req: Request) {
       MAX_AI_CANDIDATES
     )
 
-    const aiPick = await pickBestCategoryAI(productName, features, forAi)
+    const [aiPick, customHint] = await Promise.all([
+      pickBestCategoryAI(productName, features, forAi),
+      generateCustomCategoryLabel(productName, features),
+    ])
 
     if (aiPick) {
-      setCache(key, aiPick, "ai")
+      setCache(key, aiPick, "ai", "high", customHint ?? undefined)
       logUsage({ userId: user.id, ip, plan, source: "ai", ms: Date.now() - t0 })
       return NextResponse.json({
         ok: true,
@@ -267,6 +290,7 @@ export async function POST(req: Request) {
         source: "ai",
         suggestion: leafToJson(aiPick),
         candidates: topCandidates,
+        ...(customHint ? { customCategoryHint: customHint } : {}),
       })
     }
 
@@ -277,6 +301,7 @@ export async function POST(req: Request) {
       source: "heuristic",
       suggestion: null,
       candidates: topCandidates,
+      ...(customHint ? { customCategoryHint: customHint } : {}),
     })
   } catch (e) {
     console.error("[categories/suggest]", e)

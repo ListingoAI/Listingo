@@ -8,6 +8,9 @@ import type { AllegroLeafCategory } from "./types"
 type CacheEntry = {
   leaf: AllegroLeafCategory
   source: "heuristic" | "ai"
+  confidence: "high" | "medium"
+  /** Krótka etykieta „Inne / własna” (generowana tanim modelem) */
+  customCategoryHint?: string
   ts: number
 }
 
@@ -17,7 +20,7 @@ const MAX_CACHE_SIZE = 500
 const resultCache = new Map<string, CacheEntry>()
 
 export function cacheKey(productName: string, features: string): string {
-  const raw = `${productName.trim().toLowerCase()}||${features.trim().toLowerCase()}`
+  const raw = `${productName.trim().toLowerCase()}||${features.trim().toLowerCase()}||suggest-v7-wearable-gps`
   return crypto.createHash("sha256").update(raw).digest("hex").slice(0, 24)
 }
 
@@ -34,13 +37,28 @@ export function getCached(key: string): CacheEntry | null {
 export function setCache(
   key: string,
   leaf: AllegroLeafCategory,
-  source: "heuristic" | "ai"
+  source: "heuristic" | "ai",
+  confidence: "high" | "medium" = "high",
+  customCategoryHint?: string
 ): void {
   if (resultCache.size >= MAX_CACHE_SIZE) {
     const oldest = resultCache.keys().next().value
     if (oldest !== undefined) resultCache.delete(oldest)
   }
-  resultCache.set(key, { leaf, source, ts: Date.now() })
+  resultCache.set(key, {
+    leaf,
+    source,
+    confidence,
+    ...(customCategoryHint ? { customCategoryHint } : {}),
+    ts: Date.now(),
+  })
+}
+
+/** Uzupełnienie wpisu cache o etykietę własnej kategorii (np. stare wpisy bez pola). */
+export function patchCacheHint(key: string, hint: string): void {
+  const e = resultCache.get(key)
+  if (!e) return
+  resultCache.set(key, { ...e, customCategoryHint: hint, ts: Date.now() })
 }
 
 // ---------------------------------------------------------------------------

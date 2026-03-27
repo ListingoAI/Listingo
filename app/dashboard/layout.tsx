@@ -1,6 +1,6 @@
 "use client"
 
-import { Camera, FileText, LayoutDashboard, Menu, Mic2, Settings2, Video, Zap } from "lucide-react"
+import { Camera, FileText, LayoutDashboard, Menu, Mic2, Settings2, Sparkles, Video, Zap } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
@@ -17,6 +17,7 @@ const NAV_LINKS = [
   { href: "/dashboard/generate",     label: "AI Sales Hub", icon: Zap,             sublabel: "Generuj opisy i posty" },
   { href: "/dashboard/photo-studio", label: "Photo Studio", icon: Camera,          sublabel: "Packshot AI",       newBadge: true },
   { href: "/dashboard/video-studio", label: "Video Studio", icon: Video,           sublabel: "Film produktowy",   newBadge: true },
+  { href: "/dashboard/listing-suite", label: "Listing na gotowo", icon: Sparkles, sublabel: "6 zdjęć · film · opis", newBadge: true },
   { href: "/dashboard/descriptions", label: "Moje opisy",   icon: FileText,        sublabel: "Biblioteka opisów" },
   { href: "/dashboard/brand",        label: "Brand Voice",  icon: Mic2,            sublabel: "Ton i styl marki" },
   { href: "/dashboard/settings",     label: "Ustawienia",   icon: Settings2,       sublabel: "Plan i konto" },

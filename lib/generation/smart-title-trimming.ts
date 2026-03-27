@@ -38,7 +38,7 @@ export function buildSmartTitleTrimmingUserBlock(
   const over = name.length - titleMaxChars
   const allegroHint =
     platformSlug === "allegro"
-      ? `Dla Allegro (50 zn.): tytuł oferty napędza wyszukiwarkę — pierwsze słowa muszą oddawać „co to jest” i najważniejszy wyróżnik; nie trać limitu na puste słowa.\n`
+      ? `Dla Allegro (75 zn.): tytuł oferty napędza wyszukiwarkę — pierwsze słowa muszą oddawać „co to jest” i najważniejszy wyróżnik; nie trać limitu na puste słowa.\n`
       : ""
 
   return `

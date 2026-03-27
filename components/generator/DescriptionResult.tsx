@@ -5,6 +5,10 @@ import { useState } from "react"
 import toast from "react-hot-toast"
 
 import { exportToPDF } from "@/components/generator/ExportPDF"
+import {
+  analyzeQualityGaps,
+  compactQualityTipForDisplay,
+} from "@/lib/generation/analyze-quality-gaps"
 import { countWordsFromHtml } from "@/lib/generation/count-words-html"
 import { copyToClipboard } from "@/lib/utils"
 import type { GenerateResponse, QualityTip } from "@/lib/types"
@@ -80,9 +84,15 @@ export interface DescriptionResultProps {
   productName?: string
   /** Rodzic ustawia np. setResult(null) — wymagane do pełnego „Generuj ponownie”. */
   onRegenerate?: () => void
-  /** Druga generacja z poprzednim wynikiem + instrukcja z Quality Score (1 kredyt). */
+  /**
+   * Dopracuj do 100 — regeneracja z poprzednim wynikiem + instrukcja Quality Score (1 kredyt, gpt-4.1-mini).
+   */
   onRefineQuality?: () => void | Promise<void>
-  /** Blokuje przyciski podczas generacji */
+  /** Jedno dopracowanie na wygenerowany opis — po użyciu ukrywa przycisk do następnej generacji. */
+  refineAlreadyUsed?: boolean
+  /** Bieżąca treść pola „Cechy” — do szacunku luk do 100/100. */
+  featuresText?: string
+  /** Blokuje przycisk podczas generacji. */
   loading?: boolean
   creditsRemaining?: number
 }
@@ -92,6 +102,8 @@ export function DescriptionResult({
   productName,
   onRegenerate,
   onRefineQuality,
+  refineAlreadyUsed = false,
+  featuresText = "",
   loading = false,
   creditsRemaining,
 }: DescriptionResultProps) {
@@ -135,18 +147,12 @@ export function DescriptionResult({
   const tagsLabel = result.platformLimits?.slug === "vinted" ? "Hashtagi" : "Tagi SEO"
 
   const tips = normalizeTips(result.qualityTips)
-  const hasNegativeTips = tips.some(
-    (t) => t.type === "warning" || t.type === "error"
-  )
-  /** Uwzględnij też lukę słów (np. sanitize dodał ostrzeżenie tylko po stronie serwera w innym przebiegu). */
-  const belowLongMin = longWordCount < longMinWords
-  const hasRoomToImprove =
-    hasNegativeTips ||
-    belowLongMin ||
-    (result.qualityScore ?? 0) < 100
+  const gapAnalysis = analyzeQualityGaps(result, featuresText)
+
   const canRefine =
     typeof onRefineQuality === "function" &&
     !loading &&
+    !refineAlreadyUsed &&
     (creditsRemaining === undefined || creditsRemaining > 0)
 
   function handleRegenerate() {
@@ -206,35 +212,47 @@ export function DescriptionResult({
                     ? "⚡ Przyzwoity. Sprawdź wskazówki."
                     : "⚠️ Wymaga poprawek. Sprawdź wskazówki poniżej."}
             </p>
+            {score < 100 && gapAnalysis.pointsTo100 > 0 ? (
+              <p className="mt-2 text-[11px] leading-snug text-cyan-200/75">
+                Do{" "}
+                <span className="font-semibold text-emerald-200/95">100/100</span> brakuje ok.{" "}
+                <span className="tabular-nums font-medium text-foreground/90">
+                  {gapAnalysis.pointsTo100}
+                </span>{" "}
+                pkt — szczegóły poniżej.
+              </p>
+            ) : score >= 100 ? (
+              <p className="mt-2 text-[11px] text-emerald-300/80">Osiągnięto 100/100.</p>
+            ) : null}
+            {canRefine ? (
+              <button
+                type="button"
+                onClick={() => void onRefineQuality?.()}
+                disabled={loading}
+                title="Dopracuj listing wg wskazówek (gpt-4.1-mini, 1 kredyt) — raz na ten opis"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-3 py-1.5 text-left transition-all hover:border-cyan-400/50 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Sparkles className="h-3.5 w-3.5 shrink-0 text-cyan-300" aria-hidden />
+                <span className="flex min-w-0 flex-col gap-0 leading-tight">
+                  <span className="text-[11px] font-semibold text-cyan-100">Dopracuj do 100</span>
+                  <span className="text-[10px] text-amber-200/80">1 kredyt</span>
+                </span>
+              </button>
+            ) : refineAlreadyUsed && onRefineQuality ? (
+              <p className="mt-2 text-[10px] leading-snug text-muted-foreground/85">
+                Dopracowanie zostało już użyte dla tego opisu. Wygeneruj opis ponownie, aby móc dopracować kolejny raz.
+              </p>
+            ) : !canRefine && onRefineQuality && creditsRemaining === 0 ? (
+              <p className="mt-2 text-[10px] text-amber-400/80">Brak kredytów do dopracowania.</p>
+            ) : null}
           </div>
         </div>
 
-        {tips.length > 0 || (canRefine && hasRoomToImprove) ? (
+        {tips.length > 0 ? (
           <div className="mt-4 space-y-2">
-            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/90">
-                {tips.length > 0 ? "Szczegóły oceny" : "Możliwa poprawa"}
-              </p>
-              {canRefine && hasRoomToImprove ? (
-                <button
-                  type="button"
-                  onClick={() => void onRefineQuality?.()}
-                  disabled={loading}
-                  title="Każde użycie pobiera 1 kredyt — jak kolejne pełne generowanie opisu."
-                  className="inline-flex max-w-[min(100%,220px)] shrink-0 items-center gap-2 rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-3 py-2 text-left transition-all hover:border-cyan-400/50 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-cyan-200" aria-hidden />
-                  <span className="flex min-w-0 flex-col gap-0.5 leading-tight">
-                    <span className="text-[11px] font-medium text-cyan-100">
-                      Ulepsz AI wg wskazówek
-                    </span>
-                    <span className="text-[10px] font-semibold text-amber-200/95">
-                      1 kredyt za każde użycie
-                    </span>
-                  </span>
-                </button>
-              ) : null}
-            </div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/90">
+              Szczegóły oceny
+            </p>
             {tips.map((tip, i) => (
               <div
                 key={i}
@@ -256,27 +274,13 @@ export function DescriptionResult({
                       : "❌"}
                 </span>
                 <span className="min-w-0 flex-1 text-muted-foreground">
-                  {tip.text}
+                  {compactQualityTipForDisplay(tip.text)}
                 </span>
                 <span className="shrink-0 text-muted-foreground/50">
                   (+{tip.points} pkt)
                 </span>
               </div>
             ))}
-            {canRefine && hasRoomToImprove ? (
-              <p className="text-[10px] leading-relaxed text-muted-foreground/80">
-                <span className="font-medium text-foreground/90">
-                  Płatność: 1 kredyt za każde kliknięcie
-                </span>{" "}
-                (tak samo jak „Generuj opis”). Model dostaje poprzedni JSON + listę ostrzeżeń i sukcesów —
-                stara się naprawić luki (np. długość opisu), nie psując tego, co już jest OK.
-              </p>
-            ) : null}
-            {!canRefine && onRefineQuality && creditsRemaining === 0 ? (
-              <p className="text-[10px] text-amber-400/90">
-                Brak kredytów — ulepszanie AI niedostępne do odnowienia limitu.
-              </p>
-            ) : null}
           </div>
         ) : null}
       </div>

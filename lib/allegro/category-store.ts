@@ -1,6 +1,11 @@
 import fs from "fs"
 import path from "path"
 
+import {
+  isLikelyRcToyOrModelProduct,
+  categoryPathSuggestsAutomotiveParts,
+} from "@/lib/generation/rc-toy-context"
+
 import type {
   AllegroCategoriesFile,
   AllegroCategoryNode,
@@ -209,6 +214,52 @@ const MEASURING_TOOL_RE =
 const CONSUMER_AUDIO_DEVICE_RE =
   /\b(głośnik|glosnik|speaker|soundbar|sound\s?bar|słuchawk|sluchawk|tws|earbuds|subwoofer)\b/i
 
+/**
+ * Smartwatch / opaska — słowo „GPS” dotyczy modułu w urządzeniu noszonym, nie nawigacji samochodowej.
+ */
+const WEARABLE_SMARTWATCH_RE =
+  /\b(smartwatch|smart\s*watch|zegarek\s+(?:sportowy|inteligentny)|opaska\s+fitness|fitness\s+tracker|opaski\s+sportowe|galaxy\s*watch|apple\s*watch|amazfit|huawei\s*watch)\b/i
+
+export function isLikelyWearableNotCarGps(hay: string): boolean {
+  const h = hay.toLowerCase()
+  if (WEARABLE_SMARTWATCH_RE.test(h)) return true
+  if (/\bekg\b/i.test(h) && /amoled|ip68|nadgarst|tętno|tetno|pulsometr|1[,.]?\d+\s*["″']?\s*(?:cal|")/i.test(h)) {
+    return true
+  }
+  if (/\bgps\b/i.test(h) && /\b(zegarek|zegark|smartwatch|sportowy|fitness)\b/i.test(h)) {
+    return true
+  }
+  return false
+}
+
+/** Kara za Motoryzacja › Nawigacje przy wearable; bonus za Elektronika › Smartwatche / zegarki sportowe. */
+export function scoreAdjustmentForWearableVsAutomotiveGpsContext(
+  leaf: AllegroLeafCategory,
+  hayLower: string
+): number {
+  if (!isLikelyWearableNotCarGps(hayLower)) return 0
+  const pl = leaf.pathLabel.toLowerCase()
+  const nm = leaf.name.toLowerCase()
+  let delta = 0
+
+  if (
+    /\bmotoryzacja\b/.test(pl) &&
+    (/nawigac/i.test(pl) || /nawigac/i.test(nm) || /\bgps\b/i.test(nm))
+  ) {
+    delta -= 420
+  }
+
+  if (
+    pl.includes("elektronika") &&
+    (pl.includes("smartwatch") ||
+      (pl.includes("zegark") && /sport|inteligent|smart/i.test(pl + " " + nm)))
+  ) {
+    delta += 260
+  }
+
+  return delta
+}
+
 /** Korekta score: kara za GSM przy narzędziach pomiarowych; bonus za narzędzia/remont. */
 export function scoreAdjustmentForMeasuringToolContext(
   leaf: AllegroLeafCategory,
@@ -307,6 +358,79 @@ export function scoreAdjustmentForPrimaryProductContext(
   return delta
 }
 
+/** Sweter / dzianina — nie mylić z kurtką (częsty błąd przy „męski” w ścieżce Odzież męska). */
+const APPAREL_KNITWEAR_RE =
+  /\b(sweter|swetry|pulower|golfy?|cardigan|dzianin\w*)\b/i
+
+/** W nazwie wyraźnie kurtka/płaszcz — wtedy nie obniżamy liścia „Kurtki”. */
+const APPAREL_OUTERWEAR_STRONG_RE =
+  /\b(kurtka|kurtk|płaszcz|plaszcze|parka|ramonesk|bomber|przejściow\w+\s+kurt)\b/i
+
+/**
+ * Kara za liść „Kurtki i płaszcze” przy swetrze; bonus za „Swetry”, dzianinę, ewent. koszulki (gdy brak liścia swetry męskie w drzewie).
+ */
+export function scoreAdjustmentForApparelKnitVsOuterContext(
+  leaf: AllegroLeafCategory,
+  hayLower: string
+): number {
+  const knit =
+    APPAREL_KNITWEAR_RE.test(hayLower) && !APPAREL_OUTERWEAR_STRONG_RE.test(hayLower)
+  if (!knit) return 0
+
+  const pl = leaf.pathLabel.toLowerCase()
+  const nm = leaf.name.toLowerCase()
+  let delta = 0
+
+  const isKurtkiPlaszczeLeaf =
+    (nm.includes("kurtki") && (nm.includes("płaszcz") || nm.includes("plaszcze"))) ||
+    /kurtki\s+i\s+płaszcz/i.test(nm)
+
+  if (isKurtkiPlaszczeLeaf) {
+    delta -= 320
+  }
+
+  if (
+    /swetry|pulower|dzianin|cardigan|bluzy\b|bluz\s/i.test(pl) &&
+    !isKurtkiPlaszczeLeaf
+  ) {
+    delta += 220
+  }
+
+  if (/\bodzież męska\b/i.test(pl)) {
+    if (/koszulk|t-shirty|tshirt/i.test(pl)) delta += 95
+    if (/koszul(\s|$)/i.test(pl) && !/koszulk/i.test(pl)) delta += 55
+  }
+
+  return delta
+}
+
+/**
+ * Zabawka / model RC vs myląca motoryzacja (np. „samochód RC” → Akumulatory).
+ */
+export function scoreAdjustmentForRcToyVsAutomotiveContext(
+  leaf: AllegroLeafCategory,
+  hayLower: string
+): number {
+  if (!isLikelyRcToyOrModelProduct(hayLower)) return 0
+
+  const pl = leaf.pathLabel.toLowerCase()
+  let delta = 0
+
+  if (categoryPathSuggestsAutomotiveParts(pl)) {
+    delta -= 340
+  }
+
+  if (
+    /\bdziecko\b/.test(pl) &&
+    /\bzabawki\b/.test(pl) &&
+    /pojazdy|tory|zewnątrz|edukacyj/i.test(pl)
+  ) {
+    delta += 240
+  }
+
+  return delta
+}
+
 /** Tokeny z nazwy i cech do wyszukiwania po fragmencie ścieżki (np. „kubek”, „barbie”). */
 export function tokenizeProductText(text: string): string[] {
   const raw = text
@@ -344,6 +468,19 @@ export function collectLeavesFromKeywordSearch(
   }
   if (CONSUMER_AUDIO_DEVICE_RE.test(hayLower)) {
     priority.push("głośniki i soundbary", "głośniki", "audio", "słuchawki")
+  }
+  if (
+    APPAREL_KNITWEAR_RE.test(hayLower) &&
+    !APPAREL_OUTERWEAR_STRONG_RE.test(hayLower)
+  ) {
+    priority.unshift("swetry", "bluzy", "dzianin", "pulower")
+  }
+  if (isLikelyRcToyOrModelProduct(hayLower)) {
+    priority.unshift("pojazdy i tory", "zabawki", "zdalnie", "pojazdy")
+  }
+  if (isLikelyWearableNotCarGps(hayLower)) {
+    priority.unshift("smartwatche", "smartwatch", "zegarki sportowe", "opaski sportowe")
+    tokens = tokens.filter((t) => t !== "gps")
   }
   const ordered = [...new Set([...priority, ...tokens])]
   const seen = new Set<string>()
@@ -410,6 +547,9 @@ export function rankLeavesByInputOverlap(
     score += scoreAdjustmentForPrimaryProductContext(leaf, hay)
     score += scoreAdjustmentForMeasuringToolContext(leaf, hay)
     score += scoreAdjustmentForConsumerAudioContext(leaf, hay)
+    score += scoreAdjustmentForApparelKnitVsOuterContext(leaf, hay)
+    score += scoreAdjustmentForRcToyVsAutomotiveContext(leaf, hay)
+    score += scoreAdjustmentForWearableVsAutomotiveGpsContext(leaf, hay)
     return { leaf, score }
   })
   scored.sort((a, b) => b.score - a.score)
@@ -444,6 +584,9 @@ export function suggestTopCandidates(
     score += scoreAdjustmentForPrimaryProductContext(leaf, hay)
     score += scoreAdjustmentForMeasuringToolContext(leaf, hay)
     score += scoreAdjustmentForConsumerAudioContext(leaf, hay)
+    score += scoreAdjustmentForApparelKnitVsOuterContext(leaf, hay)
+    score += scoreAdjustmentForRcToyVsAutomotiveContext(leaf, hay)
+    score += scoreAdjustmentForWearableVsAutomotiveGpsContext(leaf, hay)
     if (score >= 2) scored.push({ leaf, score })
   }
 

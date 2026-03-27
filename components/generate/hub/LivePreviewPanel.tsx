@@ -1,7 +1,7 @@
 "use client"
 
 import { Copy, Loader2, Pencil, Sparkles, Star } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import toast from "react-hot-toast"
 
 import type { GenerateResponse } from "@/lib/types"
@@ -14,8 +14,6 @@ type Props = {
   result: GenerateResponse | null
   error: string | null
   productName: string
-  /** streamed-style text while generating */
-  streamingText: string
 }
 
 export function LivePreviewPanel({
@@ -25,17 +23,34 @@ export function LivePreviewPanel({
   result,
   error,
   productName,
-  streamingText,
 }: Props) {
   const [editOpen, setEditOpen] = useState(false)
   const [draftLong, setDraftLong] = useState("")
   const [rating, setRating] = useState(0)
+  const [elapsedSec, setElapsedSec] = useState(0)
+
+  useEffect(() => {
+    if (!loading) {
+      setElapsedSec(0)
+      return
+    }
+    setElapsedSec(0)
+    const id = window.setInterval(() => {
+      setElapsedSec((s) => s + 1)
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [loading])
 
   const displayLong = editOpen ? draftLong : (result?.longDescription ?? "")
   const seoTitle = result?.seoTitle ?? ""
   const shortDescription = result?.shortDescription ?? ""
   const shortDescriptionLabel =
     result?.platformLimits?.slug === "amazon" ? "Bullet Points" : "Opis krótki"
+
+  const stepCount = Math.max(1, loadingMessages.length)
+  const safeStep = Math.min(loadingStep, stepCount - 1)
+  const currentMessage = loadingMessages[safeStep] ?? loadingMessages[0] ?? "Generuję…"
+  const stepProgressPct = ((safeStep + 1) / stepCount) * 100
 
   async function handleCopyAll() {
     if (!result) return
@@ -88,20 +103,121 @@ export function LivePreviewPanel({
         ) : null}
 
         {loading ? (
-          <div className="flex flex-1 flex-col gap-4 py-4">
-            <div className="flex items-center gap-2 text-cyan-400/85">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400/80">
-                Generuję…
-              </span>
+          <div className="flex min-h-0 flex-1 flex-col gap-5 py-1" aria-busy="true" aria-live="polite">
+            {/* Nagłówek + czas */}
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-500/25 bg-cyan-500/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                  <Loader2 className="h-4 w-4 animate-spin text-cyan-300" aria-hidden />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300/90">
+                    Generuję opis
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Krok {safeStep + 1} z {stepCount}
+                    <span className="mx-1.5 text-white/15" aria-hidden>
+                      ·
+                    </span>
+                    <span className="tabular-nums text-cyan-200/75">{elapsedSec}s</span>
+                    <span className="text-muted-foreground"> upłynęło</span>
+                  </p>
+                </div>
+              </div>
+              <p className="max-w-[220px] text-right text-[10px] leading-snug text-muted-foreground/90">
+                Zwykle trwa to{" "}
+                <span className="text-muted-foreground">ok. 15–60 s</span> — zależy od obciążenia i
+                złożoności produktu.
+              </p>
             </div>
-            <div className="min-h-[120px] whitespace-pre-wrap font-mono text-sm leading-relaxed text-gray-200/90">
-              {streamingText}
-              <span className="inline-block h-4 w-0.5 animate-pulse bg-cyan-400/80 align-middle" />
+
+            {/* Pasek postępu (fazy, nie % API) */}
+            <div className="space-y-2">
+              <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/8">
+                <div
+                  className="h-full rounded-full bg-linear-to-r from-cyan-500/80 via-emerald-500/75 to-teal-500/70 transition-[width] duration-700 ease-out"
+                  style={{ width: `${stepProgressPct}%` }}
+                />
+                <div
+                  className="pointer-events-none absolute inset-0 bg-linear-to-r from-transparent via-white/20 to-transparent opacity-40 animate-pulse"
+                  aria-hidden
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-y-2" role="list" aria-label="Etapy generowania">
+                {loadingMessages.map((msg, i) => {
+                  const done = i < safeStep
+                  const active = i === safeStep
+                  return (
+                    <div key={i} className="flex items-center" role="listitem">
+                      {i > 0 ? (
+                        <span
+                          className={cn(
+                            "mx-1.5 h-px w-5 sm:mx-2 sm:w-8",
+                            i <= safeStep ? "bg-emerald-500/30" : "bg-white/10"
+                          )}
+                          aria-hidden
+                        />
+                      ) : null}
+                      <span
+                        className={cn(
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold tabular-nums transition-colors sm:h-9 sm:w-9",
+                          done && "bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/30",
+                          active &&
+                            "bg-cyan-500/20 text-cyan-100 shadow-[0_0_20px_-6px_rgba(34,211,238,0.35)] ring-2 ring-cyan-400/50",
+                          !done && !active && "bg-white/6 text-muted-foreground/50"
+                        )}
+                        title={msg}
+                        aria-current={active ? "step" : undefined}
+                      >
+                        {i + 1}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              {loadingMessages[loadingStep] ?? loadingMessages[0]}
-            </p>
+
+            {/* Aktualna faza — jeden wyraźny komunikat (bez duplikatu) */}
+            <div className="rounded-xl border border-white/7 bg-black/25 px-4 py-3">
+              <p className="text-sm font-medium leading-relaxed text-gray-100/95">{currentMessage}</p>
+            </div>
+
+            {/* Szkielety jak docelowy układ */}
+            <div className="flex min-h-0 flex-1 flex-col gap-4 pt-1">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                  Tytuł SEO
+                </p>
+                <div className="mt-2 space-y-2">
+                  <div className="h-3.5 w-[92%] animate-pulse rounded-md bg-white/9" />
+                  <div className="h-3.5 w-[55%] animate-pulse rounded-md bg-white/6" />
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                  {shortDescriptionLabel}
+                </p>
+                <div className="mt-2 space-y-2">
+                  <div className="h-3 w-full animate-pulse rounded-md bg-white/7" />
+                  <div className="h-3 w-[88%] animate-pulse rounded-md bg-white/6" />
+                  <div className="h-3 w-[72%] animate-pulse rounded-md bg-white/5" />
+                </div>
+              </div>
+              <div className="min-h-0 flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                  Opis długi
+                </p>
+                <div className="mt-2 space-y-2 rounded-xl border border-white/5 bg-black/15 p-3">
+                  {[100, 95, 88, 92, 78, 85, 70].map((w, j) => (
+                    <div
+                      key={j}
+                      className="h-2.5 animate-pulse rounded-md bg-white/6"
+                      style={{ width: `${w}%` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         ) : null}
 

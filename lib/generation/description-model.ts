@@ -1,26 +1,32 @@
 /**
- * Wybór modelu czatu dla /api/generate — balans koszt (mini) vs jakość (4o).
+ * Wybór modelu czatu dla /api/generate — balans koszt (mini) vs jakość (pełny).
  *
- * - OPENAI_DESCRIPTION_MODEL=gpt-4o-mini | gpt-4o — wymusza model dla wszystkich (np. testy).
- * - Domyślnie: gpt-4o tylko dla planów pro i scale; free i starter → gpt-4o-mini.
- * - Drugi przebieg (ulepsz / refinement): zawsze mini — duży prompt z poprzednim HTML; 4o jest nieproporcjonalnie drogi.
+ * - OPENAI_DESCRIPTION_MODEL=gpt-4.1-mini | gpt-4.1 | gpt-5-mini | gpt-5.4-mini
+ *   wymusza model dla wszystkich (np. testy).
+ * - Domyślnie: gpt-5-mini (generowanie i ulepszanie).
  */
+export type DescriptionChatModel =
+  | "gpt-4.1"
+  | "gpt-4.1-mini"
+  | "gpt-5-mini"
+  | "gpt-5.4-mini"
+
 export function getDescriptionChatModel(
-  plan: string | undefined | null,
+  _plan: string | undefined | null,
   options?: { isRefinement?: boolean }
-): "gpt-4o" | "gpt-4o-mini" {
+): DescriptionChatModel {
   const override = process.env.OPENAI_DESCRIPTION_MODEL?.trim().toLowerCase()
-  if (override === "gpt-4o" || override === "gpt-4o-mini") {
-    return override === "gpt-4o" ? "gpt-4o" : "gpt-4o-mini"
+  if (
+    override === "gpt-4.1" ||
+    override === "gpt-4.1-mini" ||
+    override === "gpt-5-mini" ||
+    override === "gpt-5.4-mini"
+  ) {
+    return override
   }
 
-  if (options?.isRefinement) {
-    return "gpt-4o-mini"
-  }
+  // Ulepszanie (Dopracuj do 100) — szybszy i tańszy model wystarczy
+  if (options?.isRefinement) return "gpt-4.1-mini"
 
-  const p = (plan ?? "free").toLowerCase()
-  if (p === "pro" || p === "scale") {
-    return "gpt-4o"
-  }
-  return "gpt-4o-mini"
+  return "gpt-5-mini"
 }

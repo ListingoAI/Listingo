@@ -126,7 +126,7 @@ function SpotlightSurface({
 }
 
 export default function DashboardPage() {
-  const { user, profile, loading: userLoading } = useUser()
+  const { user, profile, loading: userLoading, refreshProfile } = useUser()
   const [stats, setStats] = useState({
     totalDescriptions: 0,
     avgQuality: 0,
@@ -207,6 +207,8 @@ export default function DashboardPage() {
 
     async function load() {
       setStatsLoading(true)
+      await refreshProfile()
+
       const supabase = createClient()
 
       const startOfMonth = new Date()
@@ -223,11 +225,19 @@ export default function DashboardPage() {
         console.error("Descriptions month count:", monthError)
       }
 
-      const { data: recent, count, error: recentError } = await supabase
+      const { count: totalCount, error: totalError } = await supabase
+        .from("descriptions")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+
+      if (totalError) {
+        console.error("Descriptions total count:", totalError)
+      }
+
+      const { data: recent, error: recentError } = await supabase
         .from("descriptions")
         .select(
-          "id, quality_score, product_name, platform, created_at",
-          { count: "exact" }
+          "id, quality_score, product_name, platform, created_at"
         )
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
@@ -293,7 +303,7 @@ export default function DashboardPage() {
 
       if (!cancelled) {
         setStats({
-          totalDescriptions: count ?? 0,
+          totalDescriptions: totalCount ?? 0,
           avgQuality,
           thisMonth: monthCount ?? 0,
         })
@@ -318,10 +328,18 @@ export default function DashboardPage() {
 
     void load()
 
+    const onVisibility = () => {
+      if (document.visibilityState === "visible" && !cancelled) {
+        void load()
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility)
+
     return () => {
       cancelled = true
+      document.removeEventListener("visibilitychange", onVisibility)
     }
-  }, [userLoading, user])
+  }, [userLoading, user, refreshProfile])
 
   const firstName =
     profile?.full_name?.split(" ").filter(Boolean)[0] ?? "Użytkownik"

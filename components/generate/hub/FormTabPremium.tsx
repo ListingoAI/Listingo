@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Droplets,
   Factory,
+  ImagePlus,
   Info,
   Loader2,
   Package,
@@ -19,7 +20,9 @@ import {
   Sparkles,
   Star,
   Target,
+  X,
 } from "lucide-react"
+import Image from "next/image"
 import Link from "next/link"
 import {
   useCallback,
@@ -42,10 +45,17 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { serializeCategorySelection } from "@/lib/allegro/category-selection"
+import type { CategorySelectionTree } from "@/lib/allegro/types"
+import {
+  formatProductImageAnalysisForFeaturesField,
+  type ProductImageAnalysis,
+} from "@/lib/generation/product-image-analysis"
+import { getCategoryProductNameHint } from "@/lib/generation/category-product-hint"
 import { needsSmartTitleTrimming } from "@/lib/generation/smart-title-trimming"
 import { PLATFORMS, TONES } from "@/lib/constants"
 import { getPlatformProfile } from "@/lib/platforms"
-import type { GenerateResponse } from "@/lib/types"
+import type { GenerateResponse, ProductImageEntry } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 import { CategoryCombobox } from "./CategoryCombobox"
@@ -218,6 +228,12 @@ function countNonEmptyFeatureLines(text: string): number {
 }
 
 const CATEGORY_CHIP_PRIORITY: Record<string, string[]> = {
+  moda_meska: ["mat", "size", "col", "care", "prod"],
+  moda_damska: ["mat", "size", "col", "care", "prod"],
+  moda_dziecieca: ["mat", "size", "col", "care", "prod"],
+  bielizna: ["mat", "size", "col", "care", "prod"],
+  akcesoria_modowe: ["mat", "size", "col", "care", "use"],
+  odziez: ["mat", "size", "col", "care", "prod"],
   odzież: ["mat", "size", "col", "care", "prod"],
   obuwie: ["size", "mat", "col", "care", "use"],
   elektronika: ["warranty", "unique", "use", "prod", "gram"],
@@ -339,6 +355,8 @@ const HUB_INFO_TRIGGER =
 const FEATURES_PLACEHOLDER =
   "Wpisz cechy lub użyj chipów — każda w nowej linii (np. „Kolor:” albo „Kolory:”, „Wymiary:” albo „Rozmiary:” — to samo)."
 
+const MAX_PRODUCT_IMAGES = 5
+
 const FEATURES_EXAMPLE_LINES = `Materiał: 95% bawełna, 5% elastan
 Rozmiary: S, M, L, XL
 Kolory: czarny, biały, granatowy
@@ -352,6 +370,9 @@ type Props = {
   setCategory: (v: string) => void
   features: string
   setFeatures: Dispatch<SetStateAction<string>>
+  productImages: ProductImageEntry[]
+  setProductImages: Dispatch<SetStateAction<ProductImageEntry[]>>
+  refreshProfile: () => void | Promise<void>
   platform: string
   setPlatform: (v: string) => void
   tone: string
@@ -363,8 +384,9 @@ type Props = {
   loadingStep: number
   loadingMessages: string[]
   handleGenerate: () => void
-  /** Druga generacja: poprzedni wynik + Quality Score (opcjonalnie). */
   handleRefineQuality?: () => void | Promise<void>
+  /** true = przycisk „Dopracuj do 100” już zużyty dla bieżącego wyniku */
+  refineAlreadyUsed?: boolean
   result: GenerateResponse | null
   showPreview: boolean
   setShowPreview: (v: boolean) => void
@@ -389,6 +411,9 @@ export function FormTabPremium({
   setCategory,
   features,
   setFeatures,
+  productImages,
+  setProductImages,
+  refreshProfile,
   platform,
   setPlatform,
   tone,
@@ -401,6 +426,7 @@ export function FormTabPremium({
   loadingMessages,
   handleGenerate,
   handleRefineQuality: handleRefineQualityProp,
+  refineAlreadyUsed = false,
   result,
   showPreview,
   setShowPreview,
@@ -408,9 +434,11 @@ export function FormTabPremium({
   creditsRemaining,
 }: Props) {
   const [openData, setOpenData] = useState(true)
+  const [openVisualInput, setOpenVisualInput] = useState(true)
   const [openSettings, setOpenSettings] = useState(true)
-  const [streamingText, setStreamingText] = useState("")
+  const [verifyLoading, setVerifyLoading] = useState(false)
   const featuresRef = useRef<HTMLTextAreaElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const latestFeaturesRef = useRef(features)
   latestFeaturesRef.current = features
 
@@ -418,6 +446,18 @@ export function FormTabPremium({
   const featMax = 2000
   const namePct = charBarPct(productName.length, nameMax)
   const featPct = charBarPct(features.length, featMax)
+  const canGenerate = Boolean(
+    !loading &&
+      (productName.trim() || features.trim() || productImages.length > 0)
+  )
+
+  const verifyImageCount = productImages.length
+  const verifyCreditsCost = verifyImageCount
+  const canVerifyFromImages =
+    verifyImageCount > 0 &&
+    creditsRemaining >= verifyCreditsCost &&
+    !loading &&
+    !verifyLoading
 
   useLayoutEffect(() => {
     const el = featuresRef.current
@@ -425,18 +465,6 @@ export function FormTabPremium({
     el.style.height = "0px"
     el.style.height = `${Math.min(el.scrollHeight, 480)}px`
   }, [features])
-
-  useEffect(() => {
-    if (!loading) return
-    const target = loadingMessages[loadingStep] ?? loadingMessages[0] ?? ""
-    let i = 0
-    const id = window.setInterval(() => {
-      i += 1
-      setStreamingText(target.slice(0, i))
-      if (i >= target.length) window.clearInterval(id)
-    }, 20)
-    return () => window.clearInterval(id)
-  }, [loading, loadingStep, loadingMessages])
 
   const qualityHints = useMemo(() => analyzeFeatures(features), [features])
   const sortedChips = useMemo(() => sortChipsByCategory(SUGGESTION_CHIPS, category), [category])
@@ -468,6 +496,10 @@ export function FormTabPremium({
   const smartTitleTrimmingActive = useMemo(
     () => needsSmartTitleTrimming(productName, platformProfile.titleMaxChars),
     [productName, platformProfile.titleMaxChars]
+  )
+  const categoryProductHint = useMemo(
+    () => getCategoryProductNameHint(productName, category, features),
+    [productName, category, features]
   )
   const [detailsOpenByPlatform, setDetailsOpenByPlatform] = useState<Record<string, boolean>>({})
 
@@ -594,17 +626,462 @@ export function FormTabPremium({
     )
   }, [setFeatures])
 
+  const addProductImageFiles = useCallback(
+    async (files: FileList | File[]) => {
+      const arr = Array.from(files)
+      const newEntries: ProductImageEntry[] = []
+      for (const file of arr) {
+        if (!file.type.startsWith("image/")) {
+          toast.error(`${file.name}: tylko JPG, PNG lub WEBP.`)
+          continue
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error(`${file.name}: max 5 MB.`)
+          continue
+        }
+        try {
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(String(reader.result ?? ""))
+            reader.onerror = () => reject(new Error("read"))
+            reader.readAsDataURL(file)
+          })
+          if (dataUrl) {
+            newEntries.push({
+              id: crypto.randomUUID(),
+              dataUrl,
+              name: file.name,
+            })
+          }
+        } catch {
+          toast.error(`Nie udało się odczytać: ${file.name}`)
+        }
+      }
+      if (newEntries.length === 0) return
+
+      setProductImages((prev) => {
+        const room = MAX_PRODUCT_IMAGES - prev.length
+        const toAdd = newEntries.slice(0, room)
+        if (toAdd.length === 0) {
+          queueMicrotask(() =>
+            toast.error(`Możesz dodać maksymalnie ${MAX_PRODUCT_IMAGES} zdjęć.`)
+          )
+          return prev
+        }
+        if (toAdd.length < newEntries.length) {
+          queueMicrotask(() =>
+            toast.error(`Możesz dodać maksymalnie ${MAX_PRODUCT_IMAGES} zdjęć.`)
+          )
+        }
+        queueMicrotask(() =>
+          toast.success(
+            toAdd.length === 1
+              ? "Zdjęcie dodane do analizy i generowania."
+              : `Dodano ${toAdd.length} zdjęć.`
+          )
+        )
+        return [...prev, ...toAdd]
+      })
+    },
+    [setProductImages]
+  )
+
+  const removeProductImage = useCallback(
+    (id: string) => {
+      setProductImages((prev) => prev.filter((p) => p.id !== id))
+    },
+    [setProductImages]
+  )
+
+  const clearProductImages = useCallback(() => {
+    setProductImages([])
+    if (imageInputRef.current) imageInputRef.current.value = ""
+  }, [setProductImages])
+
+  const applyCategoryLeaf = useCallback(
+    (s: { id: string; leafName: string; path: string[] }) => {
+      const sel: CategorySelectionTree = {
+        kind: "category",
+        id: s.id,
+        mainCategory: s.path[0],
+        categoryPath: s.path,
+        leafCategory: s.leafName,
+      }
+      setCategory(serializeCategorySelection(sel))
+    },
+    [setCategory]
+  )
+
+  const handleVerifyFromImage = useCallback(async () => {
+    if (productImages.length === 0) return
+    const imagesPayload = productImages.map((p) => p.dataUrl)
+    const n = imagesPayload.length
+    if (creditsRemaining < n) {
+      toast.error(
+        `Potrzebujesz ${n} ${n === 1 ? "kredytu" : "kredytów"} (${n} ${n === 1 ? "zdjęcie" : "zdjęć"}). Pozostało: ${creditsRemaining}.`
+      )
+      return
+    }
+    setVerifyLoading(true)
+    try {
+      const res = await fetch("/api/analyze-product-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ images: imagesPayload }),
+      })
+      const data = (await res.json()) as {
+        ok?: boolean
+        error?: string
+        upgradeRequired?: boolean
+        creditsCharged?: number
+        creditsRemaining?: number
+        detectedProductName?: string
+        visibleAttributes?: string[]
+        visibleCategoryHint?: string
+        listingSummary?: string
+        productDetailLines?: string[]
+        salesImpressionLines?: string[]
+        notVisibleOrUncertainLines?: string[]
+      }
+      if (!res.ok || !data.ok) {
+        toast.error(data.error ?? "Nie udało się przeanalizować zdjęć.")
+        return
+      }
+
+      const charged = data.creditsCharged ?? n
+      const rem = data.creditsRemaining
+      if (typeof rem === "number") {
+        toast.success(
+          `Analiza: −${charged} ${charged === 1 ? "kredyt" : "kredytów"}. Pozostało: ${rem}.`
+        )
+      }
+
+      const name = (data.detectedProductName ?? "").trim() || "Produkt"
+
+      const analysis: ProductImageAnalysis = {
+        detectedProductName: name,
+        visibleAttributes: Array.isArray(data.visibleAttributes)
+          ? data.visibleAttributes
+              .map((a) => String(a).trim())
+              .filter((x) => x.length > 0)
+              .slice(0, 10)
+          : [],
+        visibleCategoryHint: String(data.visibleCategoryHint ?? "").trim(),
+        ...(typeof data.listingSummary === "string" && data.listingSummary.trim()
+          ? { listingSummary: data.listingSummary.trim() }
+          : {}),
+        ...(Array.isArray(data.productDetailLines) && data.productDetailLines.length > 0
+          ? {
+              productDetailLines: data.productDetailLines
+                .map((x) => String(x).trim())
+                .filter((x) => x.length > 0),
+            }
+          : {}),
+        ...(Array.isArray(data.salesImpressionLines) && data.salesImpressionLines.length > 0
+          ? {
+              salesImpressionLines: data.salesImpressionLines
+                .map((x) => String(x).trim())
+                .filter((x) => x.length > 0),
+            }
+          : {}),
+        ...(Array.isArray(data.notVisibleOrUncertainLines) && data.notVisibleOrUncertainLines.length > 0
+          ? {
+              notVisibleOrUncertainLines: data.notVisibleOrUncertainLines
+                .map((x) => String(x).trim())
+                .filter((x) => x.length > 0),
+            }
+          : {}),
+      }
+
+      const featText = formatProductImageAnalysisForFeaturesField(analysis)
+
+      setProductName(name)
+      setFeatures(featText)
+      setOpenData(true)
+
+      type LeafJson = { id: string; leafName: string; path: string[]; pathLabel?: string }
+      const suggestRes = await fetch("/api/categories/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productName: name, features: featText }),
+      })
+      const suggestData = (await suggestRes.json()) as {
+        ok?: boolean
+        confidence?: "high" | "medium" | "none"
+        suggestion?: LeafJson
+        candidates?: LeafJson[]
+        customCategoryHint?: string
+        error?: string
+        retryAfterMs?: number
+      }
+
+      if (suggestRes.status === 429) {
+        toast.error(
+          `${suggestData.error ?? "Limit sugestii kategorii."} Nazwa i cechy z analizy zdjęcia są już w formularzu — spróbuj kategorii za chwilę.`
+        )
+        return
+      }
+
+      if (!suggestData.ok) {
+        toast.error(suggestData.error ?? "Kategoria: błąd — nazwa i cechy zapisane.")
+        return
+      }
+
+      if (suggestData.confidence === "high" && suggestData.suggestion) {
+        applyCategoryLeaf(suggestData.suggestion)
+        toast.success("Wypełniono nazwę, cechy i kategorię Allegro.")
+        return
+      }
+
+      if (
+        suggestData.confidence === "medium" &&
+        Array.isArray(suggestData.candidates) &&
+        suggestData.candidates.length === 1
+      ) {
+        applyCategoryLeaf(suggestData.candidates[0])
+        toast.success("Wypełniono nazwę, cechy i kategorię (jedna propozycja).")
+        return
+      }
+
+      const custom = suggestData.customCategoryHint?.trim()
+      if (custom) {
+        setCategory(serializeCategorySelection({ kind: "custom", customCategory: custom }))
+        toast.success("Wypełniono nazwę i cechy; ustawiono kategorię własną z podpowiedzi.")
+        return
+      }
+
+      toast.success("Wypełniono nazwę i cechy. Dopasuj kategorię w polu „Dane produktu”.")
+    } catch {
+      toast.error("Błąd sieci. Spróbuj ponownie.")
+    } finally {
+      setVerifyLoading(false)
+      await refreshProfile()
+    }
+  }, [
+    productImages,
+    creditsRemaining,
+    setProductName,
+    setFeatures,
+    setCategory,
+    applyCategoryLeaf,
+    refreshProfile,
+  ])
+
   return (
     <TooltipProvider delayDuration={200}>
       <div className="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
         {/* Left: scrollable form */}
         <div className="scrollbar-hub min-h-0 w-full flex-[1.15] space-y-4 overflow-x-hidden overflow-y-auto pb-8 pr-0 lg:max-h-[calc(100vh-11rem)] lg:pr-2">
+          {/* Zdjęcia produktu */}
+          <motion.section
+            layout
+            className="relative overflow-hidden rounded-[24px] border border-white/8 bg-linear-to-br from-white/4 via-cyan-950/16 to-emerald-950/18 p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_24px_80px_-40px_rgba(0,0,0,0.55)] backdrop-blur-xl transition-[transform,box-shadow,border-color] duration-200 will-change-transform hover:-translate-y-px hover:border-white/12 hover:shadow-[0_0_40px_-12px_rgba(34,211,238,0.12)] md:p-6"
+          >
+            <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-white/4 to-transparent" />
+            <div className="pointer-events-none absolute -right-16 -top-16 h-36 w-36 rounded-full bg-cyan-500/8 blur-3xl" aria-hidden />
+            <div className="pointer-events-none absolute -bottom-20 -left-8 h-32 w-32 rounded-full bg-emerald-500/8 blur-3xl" aria-hidden />
+            <button
+              type="button"
+              onClick={() => setOpenVisualInput((o) => !o)}
+              className="relative z-10 flex w-full items-center justify-between gap-3 text-left"
+            >
+              <span className="flex flex-wrap items-center gap-2">
+                <ImagePlus className="h-4 w-4 text-cyan-400/90 drop-shadow-[0_0_14px_rgba(34,211,238,0.12)]" />
+                <span className="bg-linear-to-r from-white to-gray-400 bg-clip-text text-[11px] font-bold uppercase tracking-[0.2em] text-transparent">
+                  Zdjęcia produktu
+                </span>
+                <span
+                  className="shrink-0 rounded-md border border-emerald-400/50 bg-emerald-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.55),0_0_28px_rgba(16,185,129,0.25)] ring-1 ring-emerald-400/35"
+                  aria-hidden
+                >
+                  Premium+
+                </span>
+              </span>
+              <motion.span animate={{ rotate: openVisualInput ? 180 : 0 }} className="text-muted-foreground">
+                ▼
+              </motion.span>
+            </button>
+            <motion.div className="relative mt-2 h-0.5 w-full overflow-hidden rounded-full bg-white/5" initial={false}>
+              <motion.div
+                className="h-full bg-linear-to-r from-cyan-500/90 via-teal-500 to-emerald-500"
+                initial={{ width: 0 }}
+                animate={{ width: "100%" }}
+                transition={{ duration: 0.6, delay: 0.05, ease: [0.4, 0, 0.2, 1] }}
+              />
+            </motion.div>
+
+            <AnimatePresence initial={false}>
+              {openVisualInput ? (
+                <motion.div
+                  key="visual-input"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+                  className="relative z-10 overflow-hidden"
+                >
+                  <div className="space-y-5 pt-5">
+                    <div className="flex items-start justify-between gap-3 rounded-xl border border-cyan-500/15 bg-cyan-500/5 px-3.5 py-3 text-[11px] leading-relaxed text-cyan-100/85">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-cyan-100">Zdjęcia i weryfikacja</p>
+                        <p className="mt-1 text-cyan-100/75">
+                          Dodaj do {MAX_PRODUCT_IMAGES} zdjęć — przy „Weryfikuj AI” pobieramy{" "}
+                          <span className="text-cyan-50/95">1 kredyt za każde zdjęcie</span> (łączymy fakty
+                          ze wszystkich ujęć). „Generuj” zużywa osobno 1 kredyt na opis i po stronie serwera
+                          analizuje <span className="text-cyan-50/95">pierwsze</span> zdjęcie jako kontekst
+                          wizyjny.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="mb-2.5 flex items-center gap-2 text-xs font-semibold text-gray-100/90">
+                        <span>Zdjęcia produktu</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button type="button" className={HUB_INFO_TRIGGER} aria-label="Pomoc: zdjęcia produktu">
+                              <Info className="h-3.5 w-3.5" strokeWidth={2} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="top"
+                            sideOffset={8}
+                            arrowClassName={HUB_TOOLTIP_ARROW}
+                            className={cn(HUB_TOOLTIP_CLASS, "max-w-[min(90vw,320px)]")}
+                          >
+                            <p>
+                              Do {MAX_PRODUCT_IMAGES} zdjęć. „Weryfikuj AI” scala widoczne fakty; koszt to 1 kredyt
+                              na zdjęcie.
+                            </p>
+                            <p className="mt-2 text-[12px] text-gray-300/90">
+                              Najlepiej: ten sam produkt, różne ujęcia, dobre światło.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                          const files = e.target.files
+                          if (files?.length) void addProductImageFiles(files)
+                          e.target.value = ""
+                        }}
+                      />
+                      {productImages.length === 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => imageInputRef.current?.click()}
+                          className="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/12 bg-black/15 px-4 py-7 text-center transition-colors hover:border-cyan-500/35 hover:bg-black/20"
+                        >
+                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-500/20 bg-cyan-500/10">
+                            <ImagePlus className="h-5 w-5 text-cyan-300" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-100">Dodaj zdjęcia produktu</p>
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              JPG, PNG lub WEBP • max 5 MB • do {MAX_PRODUCT_IMAGES} plików
+                            </p>
+                          </div>
+                        </button>
+                      ) : (
+                        <div className="space-y-3 rounded-2xl border border-white/10 bg-black/15 p-3">
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {productImages.map((img) => (
+                              <div
+                                key={img.id}
+                                className="group relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/30"
+                              >
+                                <Image
+                                  src={img.dataUrl}
+                                  alt={img.name || "Podgląd"}
+                                  fill
+                                  unoptimized
+                                  className="object-cover"
+                                  sizes="(max-width:640px) 50vw, 33vw"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeProductImage(img.id)}
+                                  disabled={verifyLoading}
+                                  className="absolute right-1 top-1 inline-flex h-7 w-7 items-center justify-center rounded-lg border border-white/15 bg-black/55 text-white/90 opacity-90 backdrop-blur-sm transition-opacity hover:bg-red-500/35 disabled:cursor-not-allowed disabled:opacity-40"
+                                  aria-label={`Usuń ${img.name}`}
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                                <p className="pointer-events-none absolute bottom-0 left-0 right-0 truncate bg-black/50 px-1.5 py-1 text-[9px] text-gray-200/90">
+                                  {img.name}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[11px] leading-relaxed text-muted-foreground">
+                            Pierwsze zdjęcie jest używane przy „Generuj” jako dodatkowa analiza wizyjna po stronie
+                            serwera. Weryfikacja zbiera fakty ze <span className="text-gray-200/90">wszystkich</span>{" "}
+                            ujęć.
+                          </p>
+                          <p className="text-[11px] text-muted-foreground/90">
+                            <span className="font-medium text-emerald-200/90">Weryfikacja:</span>{" "}
+                            {verifyCreditsCost}{" "}
+                            {verifyCreditsCost === 1 ? "kredyt" : "kredytów"} ({verifyImageCount}{" "}
+                            {verifyImageCount === 1 ? "zdjęcie" : "zdjęć"}
+                            ). Pozostało kredytów: {creditsRemaining}.
+                            {creditsRemaining < verifyCreditsCost ? (
+                              <span className="text-amber-300/95"> — za mało kredytów na tę weryfikację.</span>
+                            ) : null}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleVerifyFromImage}
+                              disabled={!canVerifyFromImages}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/12 px-2.5 py-1 text-[11px] font-medium text-emerald-100 transition-colors hover:bg-emerald-500/18 disabled:cursor-not-allowed disabled:opacity-45"
+                            >
+                              {verifyLoading ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Sparkles className="h-3.5 w-3.5 text-emerald-300" />
+                              )}
+                              Weryfikuj AI
+                            </button>
+                            {productImages.length < MAX_PRODUCT_IMAGES ? (
+                              <button
+                                type="button"
+                                onClick={() => imageInputRef.current?.click()}
+                                disabled={verifyLoading}
+                                className="rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-medium text-cyan-200 transition-colors hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-45"
+                              >
+                                Dodaj ({productImages.length}/{MAX_PRODUCT_IMAGES})
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={clearProductImages}
+                              disabled={verifyLoading}
+                              className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-red-500/25 hover:bg-red-500/10 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-45"
+                            >
+                              <X className="h-3 w-3" />
+                              Usuń wszystkie
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+          </motion.section>
+
           {/* Dane produktu */}
           <motion.section
             layout
-            className="relative overflow-hidden rounded-[24px] border border-white/8 bg-linear-to-br from-white/[0.045] via-white/[0.02] to-cyan-950/20 p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_24px_80px_-40px_rgba(0,0,0,0.55)] backdrop-blur-xl transition-[transform,box-shadow,border-color] duration-200 will-change-transform hover:-translate-y-px hover:border-white/12 hover:shadow-[0_0_40px_-12px_rgba(16,185,129,0.12)] md:p-6"
+            className="relative overflow-hidden rounded-[24px] border border-white/8 bg-linear-to-br from-white/4.5 via-white/2 to-cyan-950/20 p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_24px_80px_-40px_rgba(0,0,0,0.55)] backdrop-blur-xl transition-[transform,box-shadow,border-color] duration-200 will-change-transform hover:-translate-y-px hover:border-white/12 hover:shadow-[0_0_40px_-12px_rgba(16,185,129,0.12)] md:p-6"
           >
-            <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-white/[0.05] to-transparent" />
+            <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-white/5 to-transparent" />
             <div className="pointer-events-none absolute -right-16 -top-20 h-40 w-40 rounded-full bg-cyan-500/8 blur-3xl" aria-hidden />
             <div className="pointer-events-none absolute -bottom-24 -left-12 h-36 w-36 rounded-full bg-emerald-600/10 blur-3xl" aria-hidden />
             <button
@@ -738,6 +1215,15 @@ export function FormTabPremium({
                         productName={productName}
                         features={features}
                       />
+                      {categoryProductHint ? (
+                        <p
+                          className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-2.5 py-1.5 text-[10px] leading-snug text-amber-100/90"
+                          role="status"
+                        >
+                          <span className="font-medium text-amber-200/95">Kategoria vs nazwa:</span>{" "}
+                          {categoryProductHint}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div>
@@ -830,7 +1316,7 @@ export function FormTabPremium({
                                           ? "border-amber-500/35 bg-amber-500/8 text-amber-100"
                                           : suggested
                                             ? "border-cyan-500/40 bg-cyan-500/5 text-cyan-100 ring-1 ring-cyan-500/25"
-                                            : "border-white/10 bg-white/[0.03] text-muted-foreground hover:border-cyan-500/30 hover:bg-emerald-500/10 hover:text-emerald-100"
+                                            : "border-white/10 bg-white/3 text-muted-foreground hover:border-cyan-500/30 hover:bg-emerald-500/10 hover:text-emerald-100"
                                     )}
                                   >
                                     <chip.Icon
@@ -875,7 +1361,7 @@ export function FormTabPremium({
                         onChange={(e) => setFeatures(e.target.value)}
                         placeholder={FEATURES_PLACEHOLDER}
                         maxLength={featMax}
-                        className="min-h-[100px] w-full resize-none rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-gray-100 shadow-inner transition-all hover:border-white/20 focus:border-emerald-500 focus:outline-none focus:ring-[3px] focus:ring-emerald-500/12"
+                        className="scroll-mt-24 min-h-[100px] w-full resize-none rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-gray-100 shadow-inner transition-all hover:border-white/20 focus:border-emerald-500 focus:outline-none focus:ring-[3px] focus:ring-emerald-500/12"
                       />
                       <div className="mt-2 h-0.5 w-full overflow-hidden rounded-full bg-white/10">
                         <div
@@ -917,10 +1403,10 @@ export function FormTabPremium({
           {/* Ustawienia generacji */}
           <motion.section
             layout
-            className="relative overflow-hidden rounded-[24px] border border-white/8 bg-linear-to-br from-white/[0.045] via-white/[0.02] to-emerald-950/18 p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_24px_80px_-40px_rgba(0,0,0,0.55)] backdrop-blur-xl transition-[transform,box-shadow] duration-200 will-change-transform hover:-translate-y-px hover:border-white/12 hover:shadow-[0_0_40px_-12px_rgba(34,211,238,0.1)] md:p-6"
+            className="relative overflow-hidden rounded-[24px] border border-white/8 bg-linear-to-br from-white/4.5 via-white/2 to-emerald-950/18 p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_24px_80px_-40px_rgba(0,0,0,0.55)] backdrop-blur-xl transition-[transform,box-shadow] duration-200 will-change-transform hover:-translate-y-px hover:border-white/12 hover:shadow-[0_0_40px_-12px_rgba(34,211,238,0.1)] md:p-6"
           >
             <div className="pointer-events-none absolute -right-12 top-0 h-32 w-32 rounded-full bg-emerald-500/8 blur-3xl" aria-hidden />
-            <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-white/[0.04] to-transparent" />
+            <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-white/4 to-transparent" />
             <button
               type="button"
               onClick={() => setOpenSettings((o) => !o)}
@@ -972,7 +1458,7 @@ export function FormTabPremium({
                             className={cn(HUB_TOOLTIP_CLASS, "max-w-[min(90vw,280px)]")}
                           >
                             <p>
-                              Limity tytułu i opisów biorą się z profilu platformy (np. Allegro 50 zn. w
+                              Limity tytułu i opisów biorą się z profilu platformy (np. Allegro 75 zn. w
                               tytule). Pełne zasady trafiają do promptu AI.
                             </p>
                           </TooltipContent>
@@ -1030,7 +1516,7 @@ export function FormTabPremium({
                             )}
                           </p>
                           <p className="mt-1.5 text-muted-foreground/80">
-                            Limity tytułu różnią się między kanałami (np. Allegro 50 zn., Etsy 140 zn.) — przy
+                            Limity tytułu różnią się między kanałami (np. Allegro 75 zn., Etsy 140 zn.) — przy
                             trybie ogólnym Smart Trimming trzyma się{" "}
                             <strong className="font-medium text-muted-foreground/90">
                               {platformProfile.titleMaxChars} zn.
@@ -1269,7 +1755,7 @@ export function FormTabPremium({
               <button
                 type="button"
                 onClick={() => void handleGenerate()}
-                disabled={loading || !productName.trim() || !features.trim()}
+                disabled={!canGenerate}
                 className={cn(
                   "generate-cta-shimmer group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl px-8 py-4 text-sm font-bold text-white transition-all duration-200",
                   "border border-emerald-500/35 shadow-[0_0_22px_rgba(16,185,129,0.14),0_0_48px_rgba(34,211,238,0.06)]",
@@ -1321,14 +1807,15 @@ export function FormTabPremium({
               result={result}
               error={error || null}
               productName={productName}
-              streamingText={streamingText}
             />
             {result && !loading ? (
               <div className="mt-4 space-y-4">
                 <DescriptionResult
                   result={result}
                   productName={productName}
+                  featuresText={features}
                   onRefineQuality={handleRefineQualityProp}
+                  refineAlreadyUsed={refineAlreadyUsed}
                   loading={loading}
                   creditsRemaining={creditsRemaining}
                 />
@@ -1355,14 +1842,15 @@ export function FormTabPremium({
               result={result}
               error={error || null}
               productName={productName}
-              streamingText={streamingText}
             />
             {result && !loading ? (
               <>
                 <DescriptionResult
                   result={result}
                   productName={productName}
+                  featuresText={features}
                   onRefineQuality={handleRefineQualityProp}
+                  refineAlreadyUsed={refineAlreadyUsed}
                   loading={loading}
                   creditsRemaining={creditsRemaining}
                 />
@@ -1384,3 +1872,5 @@ export function FormTabPremium({
     </TooltipProvider>
   )
 }
+
+

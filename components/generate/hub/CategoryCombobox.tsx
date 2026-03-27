@@ -78,6 +78,7 @@ export function CategoryCombobox({
   const [suggestMessage, setSuggestMessage] = useState<string | null>(null)
   const [suggestCandidates, setSuggestCandidates] = useState<SearchHit[]>([])
   const [suggestCooldown, setSuggestCooldown] = useState(false)
+  const [suggestCustomHint, setSuggestCustomHint] = useState<string | null>(null)
   const lastSuggestInput = useRef("")
 
   const parsed = parseCategoryField(value)
@@ -261,6 +262,15 @@ export function CategoryCombobox({
     setSuggestError(null)
     setSuggestMessage(null)
     setSuggestCandidates([])
+    setSuggestCustomHint(null)
+  }
+
+  function applySuggestCustomHint() {
+    const t = suggestCustomHint?.trim()
+    if (!t) return
+    onChange(serializeCategorySelection({ kind: "custom", customCategory: t }))
+    setSuggestMessage(`Ustawiono własną kategorię: ${t}`)
+    setSuggestCustomHint(null)
   }
 
   async function runSuggest() {
@@ -287,6 +297,7 @@ export function CategoryCombobox({
         confidence?: "high" | "medium" | "none"
         suggestion?: Candidate
         candidates?: Candidate[]
+        customCategoryHint?: string
         error?: string
         retryAfterMs?: number
       }
@@ -305,6 +316,9 @@ export function CategoryCombobox({
         lastSuggestInput.current = ""
         return
       }
+
+      const hint = data.customCategoryHint?.trim()
+      setSuggestCustomHint(hint && hint.length > 0 ? hint : null)
 
       const cands: SearchHit[] = (data.candidates ?? []).map((c) => ({
         id: c.id,
@@ -792,6 +806,26 @@ export function CategoryCombobox({
               </li>
             ))}
           </ul>
+        )}
+
+        {suggestCustomHint && !suggestError && (
+          <div className="flex flex-col gap-2 rounded-lg border border-emerald-500/20 bg-emerald-950/15 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/90">
+                Inne / własna (propozycja AI)
+              </p>
+              <p className="mt-0.5 text-xs font-medium leading-snug text-emerald-100/95">
+                {suggestCustomHint}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => applySuggestCustomHint()}
+              className="shrink-0 rounded-lg border border-emerald-500/35 bg-emerald-600/25 px-3 py-1.5 text-[11px] font-semibold text-emerald-50 transition-colors hover:border-emerald-400/45 hover:bg-emerald-600/40"
+            >
+              Zastosuj jako własną
+            </button>
+          </div>
         )}
       </div>
     </div>

@@ -2,7 +2,11 @@ import openai from "@/lib/openai"
 import type { AllegroLeafCategory } from "./types"
 
 const SYSTEM_LEAF = `Jesteś klasyfikatorem kategorii na polskim marketplace (Allegro).
+- Smartwatch, zegarek sportowy / inteligentny, opaska fitness, pulsometr nadgarstkowy, EKG/AMOLED/IP68 w kontekście małego ekranu na rękę → Elektronika › Smartwatche / zegarki sportowe (lub blisko) — NIGDY Motoryzacja › Nawigacje GPS tylko dlatego, że w nazwie jest „GPS”. GPS w zegarku = moduł do sportu/trasy, nie nawigacja samochodowa.
+- Nawigacja GPS w motoryzacji = osobne urządzenie do auta (mapy, uchwyt, transmiter FM z nawigacją) — tylko gdy produkt to faktycznie nawigacja samochodowa lub akcesoria do niej, nie wearable.
 - Rozumiesz sens produktu, nie tylko dosłowne słowa (np. „kubek porcelanowy z napisem” → naczynia/kuchnia, nie zabawki ani elektronika).
+- Odzież: sweter, pulower, golf (sweter), dzianina, cardigan → kategoria typu Swetry / bluzy / dzianina lub (gdy w drzewie brak swetrów męskich) koszulki/koszule — NIGDY „Kurtki i płaszcze”, chyba że w nazwie jest wyraźnie kurtka, płaszcz, parka lub ramoneska (wtedy okrycie wierzchnie).
+- Pojazd zdalnie sterowany, RC, samochód/auto RC, model zabawkowy → Dziecko › Zabawki (np. Pojazdy i tory) lub podobna zabawka — NIGDY Motoryzacja › Części › Akumulatory ani inne części do prawdziwego auta, chyba że to faktycznie akumulator 12V, opony, filtr oleju itd.
 - Najpierw określ GŁÓWNY przedmiot sprzedaży (np. długopis, laptop, sukienka). Słowa typu „etui”, „pokrowiec”, „+ zestaw” przy produkcie piśmiennym/biurowym oznaczają opakowanie lub dodatek — NIE wybieraj kategorii etui na telefon w Elektronice, jeśli główny produkt to np. długopis (wtedy pasują artykuły biurowe/szkolne).
 - Suwmiarka, mikrometr, multimetr, narzędzia pomiarowe / warsztatowe → Dom i ogród lub Firma i usługi (narzędzia, remont), NIGDY Elektronika › Telefony › Etui tylko dlatego, że przyrząd jest „cyfrowy” (to nie smartfon ani etui).
 - Głośnik Bluetooth, soundbar, słuchawki → Elektronika › TV, audio i video (np. Głośniki i soundbary / Słuchawki), NIGDY Kultura i rozrywka › Filmy › DVD/Blu-ray — nawet jeśli w nazwie są słowa pokretyczne (np. „Sonic”, „Blast”).
@@ -10,9 +14,11 @@ const SYSTEM_LEAF = `Jesteś klasyfikatorem kategorii na polskim marketplace (Al
 - Odpowiadasz WYŁĄCZNIE jednym numerem (1–N), bez tekstu, bez uzasadnienia.`
 
 const SYSTEM_MAIN = `Jesteś ekspertem od kategorii e-commerce na Allegro.
+- Smartwatch / zegarek sportowy / opaska fitness (słowa: smartwatch, zegarek sportowy, EKG, AMOLED przy małym ekranie, IP68 na nadgarstek) → gałąź Elektronika — NIE Motoryzacja przez słowo „GPS” (to inna kategoria niż nawigacja samochodowa).
 - Wybierasz jedną GŁÓWNĄ gałąź (np. Dom i ogród, Moda, Elektronika, Firma i usługi) według sensu produktu — najpierw typ głównego towaru, nie pojedynczego słowa z akcesoriów (np. długopis z etui → raczej Firma i usługi / artykuły piśmienne niż Elektronika przez słowo „etui”).
 - Suwmiarka cyfrowa, narzędzia pomiarowe, elektronarzędzia warsztatowe → zwykle Dom i ogród (narzędzia i remont) lub Firma i usługi — nie wybieraj Elektroniki przez słowo „cyfrowa”, jeśli to nie elektronika użytkowa (telefony, audio, AGD itd.).
 - Głośnik / audio przenośne → Elektronika (audio), nie filmy ani płyty DVD.
+- Auto/samochód RC, zdalnie sterowany, zabawka — gałąź Dziecko / Zabawki, nie Motoryzacja (chyba że to realne części zamienne).
 - Odpowiadasz WYŁĄCZNIE jednym numerem (1–N), bez tekstu.`
 
 export type MainBranchOption = { id: string; name: string }
@@ -100,9 +106,9 @@ ${numbered}`
     if (num >= 1 && num <= candidates.length) {
       return candidates[num - 1]
     }
-    return candidates[0]
+    return null
   } catch (err) {
     console.error("[suggest-ai] pickBestCategoryAI:", err)
-    return candidates[0]
+    return null
   }
 }

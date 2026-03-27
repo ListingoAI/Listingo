@@ -59,6 +59,13 @@ export interface BrandVoice {
   updated_at: string
 }
 
+/** Jedno zdjęcie produktu w formularzu (wiele do max 5). */
+export type ProductImageEntry = {
+  id: string
+  dataUrl: string
+  name: string
+}
+
 // Request do API generowania
 export interface GenerateRequest {
   productName: string
@@ -67,7 +74,11 @@ export interface GenerateRequest {
   features: string
   platform: string
   tone: string
-  useBrandVoice?: boolean
+  /** Opcjonalne zdjęcie produktu jako data URL/base64 do Vision. */
+  imageBase64?: string
+  /** Subiektywna ocena produktu od użytkownika (1-5) jako dodatkowy sygnał dla copy. */
+  productRating?: number | null
+  brandVoice?: { tone?: string; style?: string }
 }
 
 /** Limity docelowe dla UI (z profilu platformy) — zwracane z API generate. */
