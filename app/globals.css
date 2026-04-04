@@ -38,14 +38,21 @@ body {
 /* Dashboard: subtelna „atmosfera” — emerald + cyan, bez neonu */
 .dashboard-atmosphere {
   background-image:
-    radial-gradient(ellipse 120% 80% at 50% -35%, hsl(160 42% 22% / 0.16), transparent 54%),
-    radial-gradient(ellipse 85% 55% at 100% -5%, hsl(192 45% 24% / 0.1), transparent 52%),
-    radial-gradient(ellipse 70% 50% at 0% 105%, hsl(200 38% 18% / 0.08), transparent 48%);
+    radial-gradient(ellipse 120% 80% at 50% -35%, hsl(155 38% 16% / 0.18), transparent 54%),
+    radial-gradient(ellipse 85% 55% at 100% -5%, hsl(150 35% 14% / 0.12), transparent 52%),
+    radial-gradient(ellipse 70% 50% at 0% 105%, hsl(160 30% 12% / 0.10), transparent 48%);
 }
 
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 5rem; /* stały navbar — kotwice #funkcje, #cennik itd. */
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+body {
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 /* scrollbar */
@@ -71,9 +78,66 @@ html {
   );
 }
 
+/* Lista presetów chipów: cienki, stonowany pasek (nie domyślny „biały” z OS) */
+@layer utilities {
+  .scrollbar-preset {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(215 16% 42% / 0.35) transparent;
+  }
+  .scrollbar-preset::-webkit-scrollbar {
+    width: 5px;
+  }
+  .scrollbar-preset::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-preset::-webkit-scrollbar-thumb {
+    background: hsl(215 16% 48% / 0.35);
+    border-radius: 9999px;
+  }
+  .scrollbar-preset::-webkit-scrollbar-thumb:hover {
+    background: hsl(215 16% 55% / 0.45);
+  }
+  /* Na telefonie ukryj pasek — przewijanie dotykowe i tak działa */
+  @media (max-width: 767px) {
+    .scrollbar-preset-touch-hidden {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    .scrollbar-preset-touch-hidden::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
 /* ==========================================
    PREMIUM EFFECTS — Listingo v2.0
    ========================================== */
+
+/* Asystent AI — delikatny „żyjący” glow przy ikonie (generator) */
+@keyframes assistant-icon-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 10px -4px rgba(52, 211, 153, 0.32),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  50% {
+    box-shadow:
+      0 0 18px -2px rgba(45, 212, 191, 0.42),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+}
+
+.assistant-sparkle-glow {
+  animation: assistant-icon-glow 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-sparkle-glow {
+    animation: none;
+    box-shadow: 0 0 12px -4px rgba(52, 211, 153, 0.28);
+  }
+}
 
 /* Gradient borders na kartach */
 .gradient-border {
@@ -142,10 +206,6 @@ html {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
 
 /* Count up animation */
 @keyframes count-up {
@@ -187,6 +247,36 @@ html {
   );
   border-radius: 4px;
 }
+
+/* Vision panel — CTA: jednorazowy „sheen” przy najechaniu */
+.vision-cta-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.vision-cta-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 62%
+  );
+  transform: translateX(-130%);
+  transition: transform 0.75s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+.vision-cta-sheen:hover::after {
+  transform: translateX(130%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .vision-cta-sheen::after {
+    display: none;
+  }
+}
+
 .generate-cta-gradient {
   border-radius: inherit;
   background: linear-gradient(
@@ -431,5 +521,28 @@ html {
   .integration-logos-marquee-track {
     animation: none;
     transform: none;
+  }
+}
+
+/* ===== Shimmer button ===== */
+.btn-shimmer {
+  background: linear-gradient(
+    90deg,
+    #22c55e 0%,
+    #4ade80 30%,
+    #86efac 50%,
+    #4ade80 70%,
+    #22c55e 100%
+  ) !important;
+  background-size: 300% 100% !important;
+  animation: shimmer 3s ease-in-out infinite !important;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% center;
+  }
+  100% {
+    background-position: -100% center;
   }
 }

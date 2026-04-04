@@ -94,9 +94,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Brak zdjęcia produktu.' }, { status: 400 })
     }
 
-    const imageAnalysis = await analyzeProductImage(raw)
+    const platform = typeof body.platform === 'string' && body.platform.trim() ? body.platform.trim() : 'allegro'
+    const { analysis: imageAnalysis } = await analyzeProductImage(raw, { platformSlug: platform })
     const productName = (imageAnalysis.detectedProductName ?? '').trim() || 'Produkt'
-    const featuresText = formatProductImageAnalysisForFeaturesField(imageAnalysis)
+    const featuresText = formatProductImageAnalysisForFeaturesField(imageAnalysis, platform)
 
     const productHintForVideo = [
       productName,
@@ -129,7 +130,6 @@ export async function POST(req: NextRequest) {
       duration: 5,
     })
 
-    const platform = typeof body.platform === 'string' && body.platform.trim() ? body.platform.trim() : 'allegro'
     const tone = typeof body.tone === 'string' && body.tone.trim() ? body.tone.trim() : 'profesjonalny'
 
     const generateResult = await runGenerateListing(

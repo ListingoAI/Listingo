@@ -15,20 +15,44 @@ import { useSearchParams } from "next/navigation"
 import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import toast from "react-hot-toast"
 
+import { CompetitorUrlTab } from "@/components/generate/CompetitorUrlTab"
 import { FormTabPremium } from "@/components/generate/hub/FormTabPremium"
 import { Label } from "@/components/ui/label"
 import { useUser } from "@/hooks/useUser"
 import { CATEGORIES, PLATFORMS } from "@/lib/constants"
-import { isProOrScale } from "@/lib/plans"
+import { hasProductImageVisionAccess, isProOrScale } from "@/lib/plans"
 import { buildQualityRefinementInstruction } from "@/lib/generation/build-quality-refinement-instruction"
 import { countWordsFromHtml } from "@/lib/generation/count-words-html"
+import { hasSubstantiveImageAnalysis } from "@/lib/generation/product-image-analysis"
+import type { ProductImageAnalysis } from "@/lib/generation/product-image-analysis"
 import { createClient } from "@/lib/supabase/client"
+import type { ListingAuditResult } from "@/lib/generation/listing-audit"
 import type { GenerateRequest, GenerateResponse, ProductImageEntry } from "@/lib/types"
 import { cn, copyToClipboard } from "@/lib/utils"
 
 import type React from "react"
 
 type GenerateTabId = "form" | "social" | "price" | "email" | "image" | "url"
+
+const MAX_PRODUCT_IMAGES = 5
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ""))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+}
+
+function buildGenerateImagePayload(
+  images: ProductImageEntry[]
+): Pick<GenerateRequest, "imageBase64" | "imageBase64Images"> {
+  const urls = images.map((p) => p.dataUrl.trim()).filter(Boolean)
+  if (urls.length === 0) return {}
+  if (urls.length === 1) return { imageBase64: urls[0] }
+  return { imageBase64Images: urls }
+}
 
 const TAB_IDS: GenerateTabId[] = [
   "form",
@@ -60,12 +84,16 @@ function GeneratePageContent() {
   const { profile, refreshProfile } = useUser()
 
   const [activeTab, setActiveTab] = useState<GenerateTabId>("form")
+  /** Kreator zakładki Opis: 1 = platforma, 2 = dane produktu, 3 = ustawienia + generuj */
+  const [descriptionWizardStep, setDescriptionWizardStep] = useState<1 | 2 | 3>(1)
   const [productName, setProductName] = useState("")
   const [category, setCategory] = useState("")
   const [features, setFeatures] = useState("")
-  const [productImages, setProductImages] = useState<ProductImageEntry[]>([])
   const [platform, setPlatform] = useState("allegro")
   const [tone, setTone] = useState("profesjonalny")
+  const [listingEmojis, setListingEmojis] = useState(true)
+  const [listingIntent, setListingIntent] = useState("")
+  const [descriptionImageUrls, setDescriptionImageUrls] = useState("")
   const [useBrandVoice, setUseBrandVoice] = useState(false)
   const [brandVoiceData, setBrandVoiceData] = useState<{ tone?: string; style?: string } | null>(null)
   const [loading, setLoading] = useState(false)
@@ -73,7 +101,11 @@ function GeneratePageContent() {
   const [result, setResult] = useState<GenerateResponse | null>(null)
   /** Jedno dopracowanie „do 100” na wygenerowany opis; reset przy nowej generacji. */
   const [refineAlreadyUsed, setRefineAlreadyUsed] = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
+  /** Uwagi wklejane do instrukcji „Dopracuj do 100” (opcjonalnie). */
+  const [refineNotes, setRefineNotes] = useState("")
+  /** Audyt listingu (osobne wywołanie AI, bez kredytu). */
+  const [listingAudit, setListingAudit] = useState<ListingAuditResult | null>(null)
+  const [listingAuditLoading, setListingAuditLoading] = useState(false)
   const [error, setError] = useState("")
   /* eslint-disable @typescript-eslint/no-explicit-any -- wyniki API social-media / price-advisor */
   const [socialResult, setSocialResult] = useState<any>(null)
@@ -81,6 +113,11 @@ function GeneratePageContent() {
   const [priceResult, setPriceResult] = useState<any>(null)
   /* eslint-enable @typescript-eslint/no-explicit-any */
   const [priceLoading, setPriceLoading] = useState(false)
+  const [productImages, setProductImages] = useState<ProductImageEntry[]>([])
+  const productImagesRef = useRef<ProductImageEntry[]>([])
+  productImagesRef.current = productImages
+  const [imageAnalysis, setImageAnalysis] = useState<ProductImageAnalysis | null>(null)
+  const [imageAnalyzing, setImageAnalyzing] = useState(false)
 
   const plan = profile?.plan ?? "free"
   const creditsUsed = profile?.credits_used ?? 0
@@ -125,22 +162,155 @@ function GeneratePageContent() {
       })
   }, [profile])
 
+  const handleAddProductImages = useCallback(async (files: FileList | null) => {
+    if (!files?.length) return
+    const toAppend: ProductImageEntry[] = []
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith("image/")) {
+        toast.error("Wybierz pliki JPG, PNG lub WebP.")
+        continue
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name}: maks. 5 MB na plik.`)
+        continue
+      }
+      try {
+        const dataUrl = await readFileAsDataUrl(file)
+        toAppend.push({
+          id: crypto.randomUUID(),
+          dataUrl,
+          name: file.name,
+        })
+      } catch {
+        toast.error(`Nie udało się wczytać: ${file.name}`)
+      }
+    }
+    if (toAppend.length === 0) return
+    setProductImages((prev) => {
+      const room = MAX_PRODUCT_IMAGES - prev.length
+      if (room <= 0) {
+        toast.error(`Maksymalnie ${MAX_PRODUCT_IMAGES} zdjęć.`)
+        return prev
+      }
+      const slice = toAppend.slice(0, room)
+      if (slice.length < toAppend.length) {
+        toast.error(
+          `Możesz mieć max ${MAX_PRODUCT_IMAGES} zdjęć — dodano ${slice.length} z ${toAppend.length}.`
+        )
+      }
+      return [...prev, ...slice]
+    })
+    setImageAnalysis(null)
+  }, [])
+
+  const handleRemoveProductImage = useCallback((id: string) => {
+    setProductImages((prev) => prev.filter((p) => p.id !== id))
+    setImageAnalysis(null)
+  }, [])
+
+  const handleAnalyzeProductImage = useCallback(async () => {
+    const urls = productImagesRef.current.map((p) => p.dataUrl.trim()).filter(Boolean)
+    if (urls.length === 0) {
+      toast.error("Najpierw wybierz zdjęcie produktu.")
+      return
+    }
+    setImageAnalyzing(true)
+    try {
+      const payload =
+        urls.length === 1
+          ? { imageBase64: urls[0], platform }
+          : { images: urls, platform }
+      const res = await fetch("/api/analyze-product-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const data = (await res.json()) as Record<string, unknown> & { ok?: boolean; error?: string }
+      if (!res.ok || !data.ok) {
+        const msg =
+          typeof data.error === "string" ? data.error : "Analiza nie powiodła się."
+        if (res.status === 403 && data.upgradeRequired) {
+          toast.error(msg, { duration: 6000 })
+        } else {
+          toast.error(msg)
+        }
+        return
+      }
+      const { ok: _ok, creditsCharged: _c, creditsRemaining: _r, promptKinds: _p, ...rest } =
+        data as Record<string, unknown> & {
+          ok?: boolean
+          creditsCharged?: number
+          creditsRemaining?: number
+          promptKinds?: unknown
+        }
+      setImageAnalysis(rest as ProductImageAnalysis)
+      toast.success("Dane ze zdjęcia gotowe — sprawdź i wstaw do formularza.")
+      await refreshProfile()
+    } catch {
+      toast.error("Błąd sieci.")
+    } finally {
+      setImageAnalyzing(false)
+    }
+  }, [platform, refreshProfile])
+
+  const handleClearProductImageAnalysis = useCallback(() => {
+    setProductImages([])
+    setImageAnalysis(null)
+  }, [])
+
   const handleGenerate = useCallback(async () => {
-    const hasTextInput = Boolean(productName.trim() || features.trim())
-    const hasImageInput = productImages.length > 0
-    if (!hasTextInput && !hasImageInput) return
+    const hasTextInput = Boolean(
+      productName.trim() || features.trim() || descriptionImageUrls.trim()
+    )
+    const hasImage = productImages.length > 0
+    if (!hasTextInput && !hasImage) return
+
+    if (result?.descriptionId) {
+      fetch("/api/description-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ descriptionId: result.descriptionId, action: "retry", field: "all" }),
+      }).catch(() => {})
+    }
 
     const startTime = Date.now()
     setLoading(true)
     setError("")
     setResult(null)
-    setShowPreview(false)
+    setRefineAlreadyUsed(false)
+    setRefineNotes("")
+    setListingAudit(null)
     setLoadingStep(0)
     const stepInterval = setInterval(
       () =>
         setLoadingStep((s) => Math.min(s + 1, LOADING_STEPS.length - 1)),
       3000
     )
+
+    const retryCtx = result ? (() => {
+      const hints: string[] = []
+      if (/\d{3,}\s*[x×]\s*\d{3,}|\d+\s*mm\b|\d+\s*px\b/i.test(result.seoTitle)) {
+        hints.push('Tytuł SEO: usuń surowe specs (piksele, mm, wymiary) — wstaw frazy intencji zakupowej (marka + typ + korzyść)')
+      }
+      if (result.shortDescription && /^[^.!?]+,\s*[^.!?]+,\s*[^.!?]+/.test(result.shortDescription) && !result.shortDescription.includes('.')) {
+        hints.push('Opis krótki: zamień listę z przecinkami na jedno zdanie sprzedażowe z perspektywy kupującego')
+      }
+      if (result.qualityScore < 75) {
+        hints.push('Wynik poniżej 75 — przenieś najsilniejszą korzyść na 1. miejsce listy i do hooka')
+      }
+      const tipTexts = (result.qualityTips ?? []).filter(t => typeof t === 'object' && (t.type === 'warning' || t.type === 'error')).slice(0, 2)
+      for (const t of tipTexts) {
+        if (typeof t === 'object' && 'text' in t) hints.push(`Napraw: ${t.text}`)
+      }
+      return {
+        retryContext: {
+          previousSeoTitle: result.seoTitle,
+          previousShortDescription: result.shortDescription,
+          previousQualityScore: result.qualityScore,
+          retryHints: hints.length > 0 ? hints.slice(0, 4) : undefined,
+        },
+      }
+    })() : {}
 
     try {
       const payload: GenerateRequest = {
@@ -149,9 +319,16 @@ function GeneratePageContent() {
         features: features.trim(),
         platform,
         tone,
-        imageBase64: productImages[0]?.dataUrl.trim() || undefined,
+        listingEmojis,
+        listingIntent: listingIntent.trim() || undefined,
+        descriptionImageUrls: descriptionImageUrls.trim() || undefined,
         brandVoice:
           useBrandVoice && brandVoiceData ? brandVoiceData : undefined,
+        ...buildGenerateImagePayload(productImages),
+        ...(imageAnalysis && hasSubstantiveImageAnalysis(imageAnalysis)
+          ? { imageAnalysisPrecomputed: imageAnalysis }
+          : {}),
+        ...retryCtx,
       }
 
       const response = await fetch("/api/generate", {
@@ -165,7 +342,9 @@ function GeneratePageContent() {
       if (!response.ok) {
         if (response.status === 403) {
           setError(
-            "Wykorzystałeś limit opisów w tym miesiącu. Przejdź na wyższy plan."
+            data.upgradeRequired && typeof data.error === "string"
+              ? data.error
+              : "Wykorzystałeś limit opisów w tym miesiącu. Przejdź na wyższy plan."
           )
         } else {
           setError(data.error || "Wystąpił błąd. Spróbuj ponownie.")
@@ -202,12 +381,17 @@ function GeneratePageContent() {
     productName,
     category,
     features,
-    productImages,
     platform,
     tone,
+    listingEmojis,
+    listingIntent,
+    descriptionImageUrls,
     useBrandVoice,
     brandVoiceData,
     refreshProfile,
+    productImages,
+    imageAnalysis,
+    result,
   ])
 
   const handleRefineWithQuality = useCallback(async () => {
@@ -216,8 +400,18 @@ function GeneratePageContent() {
       toast.error("Dopracowanie można użyć tylko raz na ten opis. Wygeneruj opis ponownie, aby użyć ponownie.")
       return
     }
-    if (!productName.trim() && !features.trim() && productImages.length === 0) {
-      toast.error("Dodaj nazwę, cechy lub zdjęcie produktu przed dopracowaniem.")
+    if (
+      !productName.trim() &&
+      !features.trim() &&
+      !descriptionImageUrls.trim() &&
+      productImages.length === 0
+    ) {
+      toast.error("Dodaj nazwę, parametry lub cechy produktu przed dopracowaniem.")
+      return
+    }
+
+    if (!refineNotes.trim()) {
+      toast.error("Wpisz instrukcję do poprawy w polu „Uwagi do dopracowania”.")
       return
     }
 
@@ -246,8 +440,25 @@ function GeneratePageContent() {
         metaDescMax: result.platformLimits?.metaDescMax,
         platformSlug: result.platformLimits?.slug,
         tone,
+        listingEmojis,
+        listingIntent: listingIntent.trim() || undefined,
+        brandVoice: useBrandVoice && brandVoiceData ? brandVoiceData : undefined,
+        productName: productName.trim() || undefined,
+        category: category || undefined,
+        features: features.trim() || undefined,
       }
     )
+
+    const notes = refineNotes.trim()
+    const instructionWithNotes = `${instruction}\n\n=== UWAGI SPRZEDAWCY (uwzględnij w redakcji; nie dodawaj nowych faktów spoza danych produktu i formularza) ===\n${notes}\n`
+
+    if (result.descriptionId) {
+      fetch("/api/description-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ descriptionId: result.descriptionId, action: "refine", field: "all" }),
+      }).catch(() => {})
+    }
 
     const startTime = Date.now()
     setLoading(true)
@@ -263,10 +474,16 @@ function GeneratePageContent() {
           productName: productName.trim(),
           category,
           features: features.trim(),
-          imageBase64: productImages[0]?.dataUrl.trim() || undefined,
           platform,
           tone,
+          listingEmojis,
+          listingIntent: listingIntent.trim() || undefined,
+          descriptionImageUrls: descriptionImageUrls.trim() || undefined,
           brandVoice: useBrandVoice && brandVoiceData ? brandVoiceData : undefined,
+          ...buildGenerateImagePayload(productImages),
+          ...(imageAnalysis && hasSubstantiveImageAnalysis(imageAnalysis)
+            ? { imageAnalysisPrecomputed: imageAnalysis }
+            : {}),
           refinementOf: {
             seoTitle: result.seoTitle,
             shortDescription: result.shortDescription,
@@ -274,7 +491,7 @@ function GeneratePageContent() {
             tags: result.tags,
             metaDescription: result.metaDescription,
           },
-          refinementInstruction: instruction,
+          refinementInstruction: instructionWithNotes,
         }),
       })
 
@@ -293,6 +510,8 @@ function GeneratePageContent() {
       const typed = data as GenerateResponse
       setResult(typed)
       setRefineAlreadyUsed(true)
+      setRefineNotes("")
+      setListingAudit(null)
 
       if (typed.qualityScore >= 85) {
         import("canvas-confetti").then((confetti) => {
@@ -318,13 +537,67 @@ function GeneratePageContent() {
     productName,
     category,
     features,
-    productImages,
     platform,
     tone,
+    listingEmojis,
+    listingIntent,
+    descriptionImageUrls,
     useBrandVoice,
     brandVoiceData,
     refreshProfile,
+    productImages,
+    imageAnalysis,
+    refineNotes,
   ])
+
+  const handleListingAudit = useCallback(async () => {
+    if (!result) return
+    const startedAt = Date.now()
+    setListingAuditLoading(true)
+    try {
+      const response = await fetch("/api/listing-audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productName: productName.trim(),
+          category,
+          features: features.trim(),
+          platform,
+          listing: {
+            seoTitle: result.seoTitle,
+            shortDescription: result.shortDescription,
+            longDescription: result.longDescription,
+            tags: result.tags,
+            metaDescription: result.metaDescription,
+          },
+        }),
+      })
+      const data = (await response.json()) as {
+        audit?: ListingAuditResult
+        error?: string
+        creditsCharged?: number
+      }
+      if (!response.ok) {
+        toast.error(
+          typeof data.error === "string" && data.error.trim()
+            ? data.error
+            : "Nie udało się przeanalizować listingu."
+        )
+        return
+      }
+      if (data.audit) {
+        setListingAudit(data.audit)
+        const duration = ((Date.now() - startedAt) / 1000).toFixed(1)
+        const charged = typeof data.creditsCharged === "number" ? data.creditsCharged : 1
+        toast.success(`Analiza listingu gotowa w ${duration}s. Zużyto ${charged} kredyt.`)
+        await refreshProfile()
+      }
+    } catch {
+      toast.error("Błąd połączenia.")
+    } finally {
+      setListingAuditLoading(false)
+    }
+  }, [result, productName, category, features, platform, refreshProfile])
 
   async function handleGenerateSocial() {
     if (!productName.trim()) {
@@ -394,7 +667,14 @@ function GeneratePageContent() {
       if (activeTab !== "form") return
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault()
-        if (!loading && productName.trim() && features.trim()) {
+        if (descriptionWizardStep !== 3) return
+        if (
+          !loading &&
+          (productName.trim() ||
+            features.trim() ||
+            descriptionImageUrls.trim() ||
+            productImages.length > 0)
+        ) {
           void handleGenerate()
         }
       }
@@ -404,9 +684,12 @@ function GeneratePageContent() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [
     activeTab,
+    descriptionWizardStep,
     loading,
     productName,
     features,
+    descriptionImageUrls,
+    productImages,
     handleGenerate,
   ])
 
@@ -422,8 +705,8 @@ function GeneratePageContent() {
   }, [activeTab, result, socialResult, priceResult])
 
   return (
-    <div className="space-y-6">
-      <header className="mb-8 space-y-4">
+    <div className="w-full min-w-0 max-w-full overflow-x-hidden space-y-5 sm:space-y-6">
+      <header className="mb-6 space-y-3 sm:mb-8 sm:space-y-4">
         <div className="inline-flex items-center gap-2.5 rounded-lg border border-white/10 bg-linear-to-r from-white/4 via-cyan-950/20 to-emerald-950/15 px-2.5 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
           <span className="h-3 w-px shrink-0 bg-linear-to-b from-cyan-400/50 to-emerald-500/50" aria-hidden />
           <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-emerald-100/75">
@@ -436,7 +719,7 @@ function GeneratePageContent() {
             Hub
           </span>
         </h1>
-        <p className="max-w-xl text-[13px] leading-relaxed text-muted-foreground/90 sm:text-sm">
+        <p className="max-w-xl wrap-break-word text-[13px] leading-relaxed text-muted-foreground/90 sm:text-sm">
           Wybierz moduł poniżej —{" "}
           <span className="bg-linear-to-r from-cyan-400/80 to-emerald-400/85 bg-clip-text text-transparent">
             AI dopasuje treść
@@ -447,11 +730,11 @@ function GeneratePageContent() {
       </header>
 
       <div
-        className="-mx-1 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5"
+        className="w-full snap-x snap-mandatory overflow-x-auto overflow-y-visible pb-2 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5"
         role="tablist"
         aria-label="Narzędzia AI Sales Hub"
       >
-        <div className="inline-flex min-w-0 gap-1 rounded-2xl border border-white/10 bg-linear-to-br from-white/7 via-cyan-950/12 to-emerald-950/18 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_10px_40px_-18px_rgba(0,0,0,0.5),0_0_36px_-14px_rgba(16,185,129,0.08)] backdrop-blur-md">
+        <div className="inline-flex w-max gap-1 rounded-2xl border border-white/10 bg-linear-to-br from-white/7 via-cyan-950/12 to-emerald-950/18 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_10px_40px_-18px_rgba(0,0,0,0.5),0_0_36px_-14px_rgba(16,185,129,0.08)] backdrop-blur-md">
           {TABS.map((tab) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id
@@ -465,7 +748,7 @@ function GeneratePageContent() {
                 transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "group relative flex shrink-0 items-center gap-2.5 overflow-hidden rounded-xl px-4 py-2.5 text-sm font-semibold tracking-tight transition-[transform,box-shadow,background-color,border-color,color] duration-300 ease-out will-change-transform",
+                  "group relative flex shrink-0 snap-start items-center gap-2 overflow-hidden rounded-xl px-3 py-2 text-xs font-semibold tracking-tight transition-[transform,box-shadow,background-color,border-color,color] duration-300 ease-out will-change-transform sm:gap-2.5 sm:px-4 sm:py-2.5 sm:text-sm",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   isActive
                     ? [
@@ -505,19 +788,24 @@ function GeneratePageContent() {
       <div className="min-w-0">
       {activeTab === "form" ? (
         <FormTabPremium
+          wizardStep={descriptionWizardStep}
+          setWizardStep={setDescriptionWizardStep}
           productName={productName}
           setProductName={setProductName}
           category={category}
           setCategory={setCategory}
           features={features}
           setFeatures={setFeatures}
-          productImages={productImages}
-          setProductImages={setProductImages}
-          refreshProfile={refreshProfile}
           platform={platform}
           setPlatform={setPlatform}
           tone={tone}
           setTone={setTone}
+          listingEmojis={listingEmojis}
+          setListingEmojis={setListingEmojis}
+          listingIntent={listingIntent}
+          setListingIntent={setListingIntent}
+          descriptionImageUrls={descriptionImageUrls}
+          setDescriptionImageUrls={setDescriptionImageUrls}
           useBrandVoice={useBrandVoice}
           setUseBrandVoice={setUseBrandVoice}
           brandVoiceData={brandVoiceData}
@@ -527,11 +815,29 @@ function GeneratePageContent() {
           handleGenerate={handleGenerate}
           handleRefineQuality={handleRefineWithQuality}
           refineAlreadyUsed={refineAlreadyUsed}
+          refineNotes={refineNotes}
+          setRefineNotes={setRefineNotes}
+          onListingAudit={handleListingAudit}
+          listingAuditLoading={listingAuditLoading}
+          listingAudit={listingAudit}
           result={result}
-          showPreview={showPreview}
-          setShowPreview={setShowPreview}
           error={error}
           creditsRemaining={creditsRemaining}
+          productImages={productImages}
+          onAddProductImages={handleAddProductImages}
+          onRemoveProductImage={handleRemoveProductImage}
+          imageAnalysis={imageAnalysis}
+          setImageAnalysis={setImageAnalysis}
+          imageAnalyzing={imageAnalyzing}
+          onAnalyzeProductImage={handleAnalyzeProductImage}
+          onClearProductImageAnalysis={handleClearProductImageAnalysis}
+          productImageVisionUnlocked={hasProductImageVisionAccess(plan)}
+          onClearResult={() => {
+            setResult(null)
+            setRefineNotes("")
+            setListingAudit(null)
+            setDescriptionWizardStep(3)
+          }}
         />
       ) : null}
       {activeTab === "social" ? (
@@ -1004,33 +1310,7 @@ function GeneratePageContent() {
         </div>
       ) : null}
 
-      {activeTab === "url" ? (
-        <div className="rounded-2xl border border-border/50 bg-card/30 py-16 text-center">
-          {!isProOrScale(plan) ? (
-            <>
-              <p className="mb-3 text-3xl">🔒</p>
-              <p className="font-medium text-foreground">Analiza konkurencji</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Dostępne w planie Pro lub Scale
-              </p>
-              <Link
-                href="/dashboard/settings"
-                className="mt-4 inline-flex items-center rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-emerald-600"
-              >
-                Przejdź na wyższy plan →
-              </Link>
-            </>
-          ) : (
-            <>
-              <p className="mb-3 text-3xl">🔍</p>
-              <p className="font-medium text-foreground">Wkrótce dostępne</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Pracujemy nad tą funkcją
-              </p>
-            </>
-          )}
-        </div>
-      ) : null}
+      {activeTab === "url" ? <CompetitorUrlTab canUse={isProOrScale(plan)} /> : null}
       </div>
     </div>
   )

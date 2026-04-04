@@ -23,21 +23,29 @@ export const CATEGORIES = [
   { value: "inne", label: "📦 Inne" },
 ] as const
 
+/** Grupa UI kroku „Platforma” — marketplace, silniki sklepu, tryby ogólne */
+export type PlatformGroupId = "marketplace" | "store" | "universal"
+
 // Platformy sprzedażowe
 export const PLATFORMS = [
-  { value: "allegro", label: "Allegro", emoji: "🛒" },
-  { value: "amazon", label: "Amazon", emoji: "📦" },
-  { value: "shopify", label: "Shopify", emoji: "🛍️" },
-  { value: "shoper", label: "Shoper", emoji: "🏪" },
-  { value: "woocommerce", label: "WooCommerce", emoji: "🌐" },
-  { value: "ebay", label: "eBay", emoji: "🏷️" },
-  { value: "etsy", label: "Etsy", emoji: "🧶" },
-  { value: "vinted", label: "Vinted", emoji: "👚" },
-  { value: "empikplace", label: "Empik Place", emoji: "📚" },
-  { value: "olx", label: "OLX", emoji: "📋" },
-  { value: "ogolny", label: "Ogólny", emoji: "📝" },
-  { value: "ogolny_plain", label: "Ogólny (tekst)", emoji: "📄" },
+  { value: "allegro", label: "Allegro", emoji: "🛒", group: "marketplace" satisfies PlatformGroupId },
+  { value: "amazon", label: "Amazon", emoji: "📦", group: "marketplace" satisfies PlatformGroupId },
+  { value: "shopify", label: "Shopify", emoji: "🛍️", group: "store" satisfies PlatformGroupId },
+  { value: "woocommerce", label: "WooCommerce", emoji: "🌐", group: "store" satisfies PlatformGroupId },
+  { value: "ebay", label: "eBay", emoji: "🏷️", group: "marketplace" satisfies PlatformGroupId },
+  { value: "etsy", label: "Etsy", emoji: "🧶", group: "marketplace" satisfies PlatformGroupId },
+  { value: "vinted", label: "Vinted", emoji: "👚", group: "marketplace" satisfies PlatformGroupId },
+  { value: "empikplace", label: "Empik Place", emoji: "📚", group: "marketplace" satisfies PlatformGroupId },
+  { value: "olx", label: "OLX", emoji: "📋", group: "marketplace" satisfies PlatformGroupId },
+  { value: "ogolny", label: "Ogólny", emoji: "📝", group: "universal" satisfies PlatformGroupId },
+  { value: "ogolny_plain", label: "Ogólny (tekst)", emoji: "📄", group: "universal" satisfies PlatformGroupId },
 ] as const
+
+export const PLATFORM_GROUP_LABELS: Record<PlatformGroupId, string> = {
+  marketplace: "Marketplace i ogłoszenia",
+  store: "Sklepy (SaaS / wtyczki)",
+  universal: "Uniwersalne",
+}
 
 // Tony opisów
 export const TONES = [

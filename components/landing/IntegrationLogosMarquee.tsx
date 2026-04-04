@@ -64,27 +64,6 @@ function AmazonSmile() {
   )
 }
 
-function ShoperWordmark() {
-  return (
-    <svg viewBox="0 0 72 22" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-      <text
-        x="0"
-        y="16"
-        fill="currentColor"
-        className="select-none"
-        style={{
-          fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
-          fontSize: 17,
-          fontWeight: 700,
-          letterSpacing: "-0.02em",
-        }}
-      >
-        shoper
-      </text>
-    </svg>
-  )
-}
-
 const LOGO_ENTRIES: LogoEntry[] = [
   {
     id: "allegro",
@@ -111,15 +90,6 @@ const LOGO_ENTRIES: LogoEntry[] = [
     node: (
       <LogoSlot>
         <BrandSvg icon={siShopify} />
-      </LogoSlot>
-    ),
-  },
-  {
-    id: "shoper",
-    hoverColor: "#25D48B",
-    node: (
-      <LogoSlot>
-        <ShoperWordmark />
       </LogoSlot>
     ),
   },

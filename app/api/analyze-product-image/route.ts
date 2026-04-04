@@ -3,6 +3,8 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 import { analyzeProductImage } from '@/lib/generation/analyze-product-image'
+import { hasProductImageVisionAccess } from '@/lib/plans'
+import type { ProductImagePromptKind } from '@/lib/generation/product-image-prompt-kinds'
 import {
   mergeProductImageAnalyses,
   type ProductImageAnalysis,
@@ -56,7 +58,7 @@ export async function POST(req: Request) {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, credits_used, credits_limit')
+      .select('id, credits_used, credits_limit, plan')
       .eq('id', user.id)
       .single()
 
@@ -64,8 +66,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'Profil nie znaleziony.' }, { status: 404 })
     }
 
-    const body = (await req.json()) as { imageBase64?: string; images?: string[] }
+    if (!hasProductImageVisionAccess(profile.plan as string | undefined)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Vision (analiza zdjęcia produktu) jest dostępna w planach Pro i Scale.',
+          upgradeRequired: true,
+        },
+        { status: 403 }
+      )
+    }
+
+    const body = (await req.json()) as { imageBase64?: string; images?: string[]; platform?: string }
     const images = normalizeImages(body)
+    const platformSlug = typeof body.platform === 'string' ? body.platform.trim() : undefined
 
     if (images.length === 0) {
       return NextResponse.json(
@@ -107,8 +121,11 @@ export async function POST(req: Request) {
     }
 
     const analyses: ProductImageAnalysis[] = []
+    const promptKinds: ProductImagePromptKind[] = []
     for (const raw of images) {
-      analyses.push(await analyzeProductImage(raw))
+      const { analysis, promptKind } = await analyzeProductImage(raw, { platformSlug })
+      analyses.push(analysis)
+      promptKinds.push(promptKind)
     }
 
     const merged = mergeProductImageAnalyses(analyses)
@@ -132,6 +149,7 @@ export async function POST(req: Request) {
       ok: true,
       creditsCharged: n,
       creditsRemaining,
+      promptKinds,
       ...merged,
     })
   } catch (e) {

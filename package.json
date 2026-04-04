@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "fetch:allegro-categories": "node scripts/fetch-allegro-categories.mjs"
+    "fetch:allegro-categories": "node scripts/fetch-allegro-categories.mjs",
+    "generate:category-overrides": "tsx scripts/generate-category-overrides.ts",
+    "fix:compliance": "npx tsx scripts/fix-category-compliance.ts"
   },
   "dependencies": {
     "@imgly/background-removal": "^1.7.0",
@@ -51,6 +53,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
     "tailwindcss": "^4",
+    "tsx": "^4.19.0",
     "typescript": "^5"
   }
 }

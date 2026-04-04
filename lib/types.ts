@@ -76,9 +76,42 @@ export interface GenerateRequest {
   tone: string
   /** Opcjonalne zdjęcie produktu jako data URL/base64 do Vision. */
   imageBase64?: string
+  /** Opcjonalnie wiele zdjęć (max 5) — łączone przy analizie jak w /api/analyze-product-image. */
+  imageBase64Images?: string[]
+  /**
+   * Opcjonalnie: JSON analizy Vision z /api/analyze-product-image (po edycji w UI) —
+   * pomija ponowną analizę zdjęcia przy generacji.
+   */
+  imageAnalysisPrecomputed?: unknown
   /** Subiektywna ocena produktu od użytkownika (1-5) jako dodatkowy sygnał dla copy. */
   productRating?: number | null
+  /**
+   * Opcjonalny kierunek copy (np. „prezent”, „dla alergików”, „najtańszy start”) —
+   * model traktuje jako priorytet bez wymyślania nowych faktów.
+   */
+  listingIntent?: string
   brandVoice?: { tone?: string; style?: string }
+  /**
+   * Opcjonalnie: jeden adres https/http na linię — do osadzenia w HTML opisu (np. Allegro) jako <img src="…">.
+   */
+  descriptionImageUrls?: string
+  /**
+   * false = bez emoji/emotikonów w wygenerowanym listingu; true lub brak = zgodnie z tonem (domyślnie dozwolone z umiarem).
+   */
+  listingEmojis?: boolean
+  /**
+   * Agresywność sanitize dla Allegro:
+   * - "hard" (domyślnie): automatyczne usuwanie wykrytych naruszeń z opisu.
+   * - "soft": tylko ostrzeżenia w qualityTips, bez automatycznej ingerencji.
+   */
+  allegroSanitizeMode?: "soft" | "hard"
+  /** Kontekst poprzedniej generacji (przy retry) — model dostaje info o odrzuconej wersji. */
+  retryContext?: {
+    previousSeoTitle: string
+    previousShortDescription: string
+    previousQualityScore: number
+    retryHints?: string[]
+  }
 }
 
 /** Limity docelowe dla UI (z profilu platformy) — zwracane z API generate. */

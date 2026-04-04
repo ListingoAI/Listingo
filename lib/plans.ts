@@ -23,3 +23,14 @@ export function isPaidPlan(plan: string | undefined | null): boolean {
 export function isProOrScale(plan: string | undefined | null): boolean {
   return plan === "pro" || plan === "scale"
 }
+
+/**
+ * Vision w kreatorze: analiza zdjęcia produktu, ekstrakcja do formularza — Pro i Scale.
+ * (Pakiet „Listing na gotowo” może nadal wywołać analizę po stronie serwera z własnej ścieżki.)
+ */
+export function hasProductImageVisionAccess(plan: string | undefined | null): boolean {
+  return isProOrScale(plan)
+}
+
+export const PRODUCT_IMAGE_VISION_UPGRADE_MESSAGE =
+  "Analiza zdjęcia produktu (Vision) jest dostępna w planach Pro i Scale. Dodaj nazwę i cechy tekstowo lub przejdź na wyższy plan."

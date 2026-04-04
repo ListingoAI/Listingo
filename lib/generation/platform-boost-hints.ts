@@ -20,8 +20,14 @@ export function getPlatformBoostHints(platformSlug: string): string[] {
   switch (slug) {
     case "allegro":
       return [
-        "- Allegro: mobile-first, szybkie skanowanie; bez linków zewnętrznych i bez fikcyjnych obietnic.",
-        "- Tytuł oferty w Sellerze i parametry (filtry) uzupełniasz osobno — w opisie nie dopisuj nowych „twardych” parametrów, których nie ma w danych.",
+        "- Allegro: mobile-first, skanowalne sekcje (np. cechy, rozmiary jeśli są w danych); tylko fakty z NAZWY/CECH i ze zdjęcia — bez zgadywania; nie dopisuj segmentów docelowych, funkcji z samych nazw marketingowych ani parametrów „typowych dla kategorii”; bez pustych zdań o „oznaczeniach na opakowaniu” — jeśli ze zdjęcia wynika liczba/symbol, podaj ją jak fakt, nie jako narrację o etykiecie.",
+        "- Allegro ≠ blog/landing: nie rozwlekaj sekcji „Dlaczego warto?” ani FAQ — jeśli już wypisałeś korzyści w liście cech, kolejna sekcja tylko domyka decyzję (krótko), bez powtarzania tych samych faktów innymi słowami; FAQ max 2–3 krótkie pary albo brak, jeśli byłoby dublowanie.",
+        "- Bez superlatywów („najlepszy”, „rewolucyjny”), bez angielskich wstawek i bez linii „Materiał: nieznane”; fakt → efekt zamiast pustych haseł.",
+        "- Wybierz jedną główną oś sprzedaży produktu i podporządkuj jej hook, pierwsze benefity oraz CTA; nie sprzedawaj 5 różnych obietnic naraz.",
+        "- Jedna wartość liczbowa (W, A, cm, mAh itd.) — zwykle jeden raz w treści (np. w specyfikacji), nie w hooku + w każdym punkcie listy + ponownie w tabeli „dla SEO”; Allegro i tak liczy na parametry w panelu.",
+        "- Dodaj jedno krótkie zdanie zmniejszające naturalną wątpliwość kupującego (dopasowanie, wygoda, praktyczność), ale tylko jeśli wynika z danych.",
+        "- Tytuł w Sellerze i parametry (filtry) osobno — w opisie nie wymyślaj parametrów spoza danych; treść raczej zwięzła niż rozlana (~20–30% krócej niż typowy „lanie wody” przy tych samych faktach).",
+        "- Bez linków zewnętrznych i bez fikcyjnych obietnic.",
         ...commonEnd,
       ]
     case "amazon":
@@ -39,12 +45,6 @@ export function getPlatformBoostHints(platformSlug: string): string[] {
         "- Tytuł SEO + meta description + treść strony = spójny zestaw fraz; URL handle w Shopify rośnie z tytułu — nie rozdmuchuj nazwy bez potrzeby.",
         "- Rich HTML (h2, listy) pod Rich Results / czytelność; nie dodawaj linków zewnętrznych ani danych spoza NAZWY i CECH.",
         "- metaDescription: trzymaj się limitu z profilu — Google obcina długi snippet.",
-        ...commonEnd,
-      ]
-    case "shoper":
-      return [
-        "- Shoper: „seoTitle” ≈ meta title w panelu (~60–70 zn.); opis skrócony w rzeczywistości plain — nie wkładaj HTML do shortDescription.",
-        "- Opis długi HTML ma uzupełniać skrót innymi akcentami (nie duplikuj 1:1 tego samego bloku).",
         ...commonEnd,
       ]
     case "woocommerce":
@@ -105,6 +105,13 @@ export function getLongDescriptionStructureInstruction(
   platformSlug: string,
   isPlainTextLong: boolean
 ): string[] {
+  if (platformSlug === "allegro" && !isPlainTextLong) {
+    return [
+      "=== STRUKTURA ALLEGRO (HTML, mobile-first) ===",
+      "Pierwszy <p>: hook (max 2 zdania) oparty o jedną główną obietnicę sprzedażową. Potem sekcje h2 zgodnie z KONTEKSTEM ALLEGRO w system prompt: np. „🔹 Najważniejsze cechy” + ul/li (fakt → efekt); opcjonalnie „📏 Rozmiary / warianty”, „🏠 Zastosowanie”, „🔧 Specyfikacja”; „📦 Zawartość zestawu” tylko przy zestawie/komplecie w danych — nie wymuszaj „Co otrzymujesz?” przy jednej sztuce; dodaj jedno krótkie zdanie redukujące obiekcję kupującego; bez sekcji „lepszy niż inne”, bez „nieznane” jako treści, bez angielskich wstawek; zwięzłość.",
+    ]
+  }
+
   if (platformSlug === "shopify") {
     return [
       "=== STRUKTURA SHOPIFY DTC / direct-response (OBOWIĄZKOWA) ===",
@@ -137,24 +144,24 @@ export function getLongDescriptionStructureInstruction(
 
   const sevenSectionsPlain = [
     "Dla longDescription użyj 7 sekcji w tej kolejności (nagłówki tekstowe, bez HTML):",
-    "1. HOOK (1-2 zdania: konkret + efekt użytkownika)",
-    "2. NAJWAŻNIEJSZE ZALETY (5-7 punktów: cecha -> efekt)",
+    "1. HOOK (1-2 zdania: konkret + efekt użytkownika + jedna myśl przewodnia sprzedaży)",
+    "2. NAJWAŻNIEJSZE ZALETY (5-7 punktów: cecha -> efekt; bez dublowania tej samej korzyści innymi słowami)",
     "3. DLACZEGO TEN PRODUKT? (2-4 zdania, bez wymyślania danych)",
-    "4. DO CZEGO SIĘ PRZYDA? (3-5 realnych zastosowań)",
+    "4. DO CZEGO SIĘ PRZYDA? (3-5 realnych zastosowań + ewentualnie jedno zdanie redukujące naturalną wątpliwość kupującego)",
     "5. CO OTRZYMUJESZ / ZAWARTOŚĆ ZESTAWU (jeśli dane istnieją; jeśli brak - pomiń sekcję)",
     "6. SPECYFIKACJA (uporządkowana lista parametrów)",
-    "7. CTA (1-2 zdania: konkret + benefit + lekka pilność, bez manipulacji)",
+    "7. CTA (1-2 zdania: konkret + benefit wynikający z głównej osi sprzedaży, bez manipulacji)",
   ]
 
   const sevenSectionsHtml = [
     `Dla longDescription użyj 7 sekcji w tej kolejności (nagłówki h2 + listy ul/li):`,
-    "1. HOOK (1-2 zdania: konkret + efekt użytkownika)",
-    "2. NAJWAŻNIEJSZE ZALETY (5-7 punktów: cecha -> efekt)",
+    "1. HOOK (1-2 zdania: konkret + efekt użytkownika + jedna myśl przewodnia sprzedaży)",
+    "2. NAJWAŻNIEJSZE ZALETY (5-7 punktów: cecha -> efekt; bez dublowania tej samej korzyści innymi słowami)",
     "3. DLACZEGO TEN PRODUKT? (2-4 zdania, bez wymyślania danych)",
-    "4. DO CZEGO SIĘ PRZYDA? (3-5 realnych zastosowań)",
+    "4. DO CZEGO SIĘ PRZYDA? (3-5 realnych zastosowań + ewentualnie jedno zdanie redukujące naturalną wątpliwość kupującego)",
     "5. CO OTRZYMUJESZ / ZAWARTOŚĆ ZESTAWU (jeśli dane istnieją; jeśli brak - pomiń sekcję)",
     "6. SPECYFIKACJA (uporządkowana lista parametrów)",
-    "7. CTA (1-2 zdania: konkret + benefit + lekka pilność, bez manipulacji)",
+    "7. CTA (1-2 zdania: konkret + benefit wynikający z głównej osi sprzedaży, bez manipulacji)",
   ]
 
   if (isPlainTextLong) {
@@ -175,10 +182,6 @@ export function getPlatformFieldMapHints(platformSlug: string): string[] {
     case "etsy":
       return [
         "- Dla Etsy: longDescription = plain text; pierwsze ~160 znaków ma sensownie pełnić rolę „widocznego wstępu”.",
-      ]
-    case "shoper":
-      return [
-        "- Dla Shoper: shortDescription = plain text (bez HTML); longDescription = pełna struktura boost w HTML.",
       ]
     case "shopify":
       return [

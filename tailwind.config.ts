@@ -3,6 +3,8 @@ import type { Config } from "tailwindcss"
 const config: Config = {
   darkMode: "class", // ✅ poprawne w v4
 
+  safelist: ["btn-shimmer"],
+
   content: [
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",

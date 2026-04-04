@@ -148,6 +148,7 @@ export function analyzeQualityGaps(
 
   const suggestedFeatureLines: string[] = []
   const combinedTips = blocking.map((b) => b.text).join(" ").toLowerCase()
+  const platformSlug = (result.platformLimits?.slug ?? "").toLowerCase()
 
   const pushUnique = (line: string) => {
     if (!suggestedFeatureLines.includes(line)) suggestedFeatureLines.push(line)
@@ -157,7 +158,7 @@ export function analyzeQualityGaps(
     /kolor|barwa|odcie/i.test(combinedTips) &&
     !featuresLikelyHasColorInfo(featuresText)
   ) {
-    pushUnique("Kolor: ")
+    pushUnique("Kolor: np. czarny / grafitowy (dopisz dokładnie, jak w ofercie).")
   }
   if (
     /wymiar|rozmiar|szer|wysok|głęb|cm\b/i.test(combinedTips) &&
@@ -165,30 +166,37 @@ export function analyzeQualityGaps(
     !/\b\d+\s*[×x]\s*\d+/i.test(featuresText) &&
     !/\b\d+\s*(cm|mm)\b/i.test(featuresText)
   ) {
-    pushUnique("Wymiary (np. S×W×G cm): ")
+    pushUnique("Wymiary (np. S×W×G w cm): dopisz realne wartości z pomiaru.")
   }
   if (
     /waga|\bkg\b|gram/i.test(combinedTips) &&
     !featuresHasWeightHeader(featuresText) &&
     !/\b\d+[,.]?\d*\s*kg\b/i.test(featuresText)
   ) {
-    pushUnique("Waga: ")
+    pushUnique("Waga: np. 450 g lub 1,2 kg (dopisz faktyczną wartość).")
   }
-  if (/parametr|filtr|allegro|formularz/i.test(combinedTips)) {
+  if (
+    /parametr|filtr|allegro|formularz/i.test(combinedTips) &&
+    platformSlug === "allegro"
+  ) {
     pushUnique(
       "Parametry oferty (Allegro): uzupełnij w formularzu wystawiania — kolor, rozmiar, stan, kod producenta (jeśli dotyczy)."
     )
   }
   if (/ean|kod kresk|gtin/i.test(combinedTips) && !/\bean\b/i.test(ft)) {
-    pushUnique("EAN / kod producenta: ")
+    pushUnique("EAN / kod producenta: wpisz numer, jeśli go masz (ważne pod wyszukiwarkę i katalog).")
   }
   if (/materiał|skład/i.test(combinedTips) && !/materiał|skład/i.test(ft)) {
-    pushUnique("Materiał / skład: ")
+    pushUnique("Materiał / skład: np. ABS, stal nierdzewna, bawełna 100% — konkretnie, bez dopisków „od sprzedawcy”.")
   }
 
   if (suggestedFeatureLines.length === 0 && pointsTo100 > 0) {
+    const tail =
+      platformSlug === "allegro"
+        ? "w opisie, cechach lub parametrach formularza Allegro."
+        : "w opisie lub w polu cech poniżej."
     suggestedFeatureLines.push(
-      "Dopisz konkretne cechy (np. kolor, wymiary, waga), których brakuje w opisie lub w parametrach."
+      `Dopisz konkretne cechy (np. kolor, wymiary, waga), których brakuje — ${tail}`
     )
   }
 

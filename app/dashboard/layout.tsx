@@ -194,12 +194,12 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="relative flex min-h-screen bg-background">
+    <div className="relative flex min-h-screen max-w-full overflow-x-hidden bg-[#080f0d]">
       <div
         className="dashboard-atmosphere pointer-events-none fixed inset-0 z-0"
         aria-hidden
       />
-      <aside className="relative z-10 hidden w-64 flex-col border-r border-white/10 bg-card/55 p-5 shadow-[inset_-1px_0_0_rgba(255,255,255,0.05)] backdrop-blur-xl lg:flex">
+      <aside className="relative z-10 hidden w-64 flex-col border-r border-[#1a2e1c] bg-[#0a1410]/80 p-5 shadow-[inset_-1px_0_0_rgba(255,255,255,0.03)] backdrop-blur-xl lg:flex">
         <div className="flex min-h-0 flex-1 flex-col">
           <SidebarBody {...sidebarProps} />
         </div>
@@ -208,7 +208,7 @@ export default function DashboardLayout({
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
         <SheetContent
           side="left"
-          className="w-64 border-r border-white/6 bg-card p-5"
+          className="w-64 border-r border-[#1a2e1c] bg-[#0a1410] p-5"
         >
           <SheetTitle className="sr-only">Menu nawigacji dashboardu</SheetTitle>
           <div className="flex min-h-0 flex-1 flex-col">
@@ -220,8 +220,8 @@ export default function DashboardLayout({
         </SheetContent>
       </Sheet>
 
-      <div className="relative z-10 flex min-h-screen flex-1 flex-col">
-        <div className="sticky top-0 z-40 border-b border-white/10 bg-background/85 px-4 py-3 shadow-[0_0_40px_-20px_rgba(0,0,0,0.5)] backdrop-blur-xl lg:hidden">
+      <div className="relative z-10 flex min-h-screen min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
+        <div className="sticky top-0 z-40 border-b border-[#1a2e1c] bg-[#080f0d]/90 px-4 py-3 shadow-[0_0_40px_-20px_rgba(0,0,0,0.5)] backdrop-blur-xl lg:hidden">
           <div className="flex items-center justify-between">
             <button
               type="button"
@@ -244,7 +244,7 @@ export default function DashboardLayout({
           </div>
         </div>
 
-        <main className="relative mx-auto w-full max-w-6xl flex-1 p-6 lg:p-8">
+        <main className="relative mx-auto w-full min-w-0 max-w-6xl flex-1 overflow-x-hidden p-4 sm:p-6 lg:p-8">
           {loading ? (
             <div className="flex min-h-[50vh] items-center justify-center">
               <div

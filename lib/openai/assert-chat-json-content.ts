@@ -28,13 +28,13 @@ export function assertChatJsonContent(
 
   if (choice?.finish_reason === 'length') {
     throw new Error(
-      'Odpowiedź AI została ucięta (limit tokenów). Spróbuj ponownie albo ustaw wyższy OPENAI_DESCRIPTION_MAX_COMPLETION_TOKENS / model gpt-4.1-mini.'
+      'Odpowiedź AI została ucięta (limit tokenów). Spróbuj ponownie albo zwiększ OPENAI_DESCRIPTION_MAX_COMPLETION_TOKENS (dla tego endpointu) / użyj modelu z większym limitem.'
     )
   }
   if (refusal) {
     throw new Error('Model odmówił odpowiedzi. Zmień treść lub spróbuj ponownie.')
   }
   throw new Error(
-    'Brak odpowiedzi z AI (pusty content). Spróbuj ponownie — jeśli się powtarza, ustaw OPENAI_DESCRIPTION_MODEL=gpt-4.1-mini.'
+    'Brak odpowiedzi z AI (pusty content). Spróbuj ponownie — jeśli problem się powtarza, zmień model albo zwiększ limit tokenów dla danego endpointu.'
   )
 }

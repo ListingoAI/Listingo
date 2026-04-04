@@ -1,4 +1,5 @@
 import { countWordsFromHtml } from "@/lib/generation/count-words-html"
+import { repairListingHtmlDescription } from "@/lib/generation/repair-listing-html"
 import { optimizeEbayTitle } from "@/lib/generation/ebay-title-optimizer"
 import {
   effectiveCharMax,
@@ -6,6 +7,44 @@ import {
 } from "@/lib/generation/platform-char-limits"
 import type { PlatformProfile } from "@/lib/platforms"
 import type { QualityTip } from "@/lib/types"
+
+/** Model czasem zwraca samo CTA zamiast tytułu oferty — to nie jest seoTitle. */
+function looksLikeCtaOnlySeoTitle(title: string): boolean {
+  const t = title
+    .trim()
+    .toLowerCase()
+    .replace(/[!?.…]+$/g, "")
+    .replace(/\s+/g, " ")
+  if (!t || t.length > 52) return false
+
+  const exact = new Set([
+    "dodaj do koszyka",
+    "dodaj do koszyka teraz",
+    "kup teraz",
+    "zamów teraz",
+    "zamow teraz",
+    "kup online",
+    "zamów online",
+    "zamow online",
+    "sprawdź ofertę",
+    "sprawdz oferte",
+    "złóż zamówienie",
+    "zloz zamowienie",
+    "kup już dziś",
+    "kup juz dzis",
+    "zobacz więcej",
+    "zobacz wiecej",
+    "sprawdź szczegóły",
+    "sprawdz szczegoly",
+  ])
+  if (exact.has(t)) return true
+
+  if (t.length <= 32 && /^(dodaj|kup|zamów|zamow|sprawdź|sprawdz|zobacz|weź|wez)\b/i.test(t)) {
+    if (/\d/.test(t)) return false
+    return /koszyka|teraz|online|ofert|zamówienie|szczegół|wiecej/i.test(t)
+  }
+  return false
+}
 
 function truncateSmart(s: string, max: number): string {
   if (!s || s.length <= max) return s
@@ -61,7 +100,7 @@ function emergencySmartTrimTitle(title: string, max: number): string {
     "u",
     "a",
   ])
-  let tokens = deduped.filter((t, idx) => {
+  const tokens = deduped.filter((t, idx) => {
     if (idx === 0) return true
     return !stopwords.has(t.toLowerCase())
   })
@@ -106,6 +145,53 @@ function parseQualityTipsRaw(raw: unknown): QualityTip[] {
   return out
 }
 
+/**
+ * Usuwa dopiski osłabiające zaufanie przy parametrach (częsty błąd modelu), np.
+ * „Materiał: ABS (informacja od sprzedawcy)” — kupujący czyta to jako niepewność.
+ * Usuwa też meta-notatki o źródle (okładka, zdjęcie, etykieta) — nie są treścią dla kupującego.
+ */
+function stripSellerTrustWeakeningDisclaimers(text: string): {
+  cleaned: string
+  changed: boolean
+} {
+  if (!text.trim()) return { cleaned: text, changed: false }
+  const original = text
+  let next = text
+  const patterns: RegExp[] = [
+    /\s*[\(（]\s*(?:informacja|info|dane)\s+(?:od\s+)?sprzedawcy\s*[\)）]/gi,
+    /\s*[\(（]\s*według\s+sprzedawcy\s*[\)）]/gi,
+    /\s*[\(（]\s*zgodnie\s+z\s+informacją\s+sprzedawcy\s*[\)）]/gi,
+    /\s*[\(（]\s*na\s+podstawie\s+informacji\s+od\s+sprzedawcy\s*[\)）]/gi,
+    /\s*[\(（]\s*dane\s+pochodzą\s+od\s+sprzedawcy\s*[\)）]/gi,
+    /\s*[\(（]\s*podane\s+przez\s+sprzedawcę\s*[\)）]/gi,
+    /\s+—\s*informacja\s+od\s+sprzedawcy\.?/gi,
+    /\s*,\s*informacja\s+od\s+sprzedawcy/gi,
+    // Meta o źródle z okładki / zdjęcia / etykiety — zbędne dla kupującego (częsty błąd przy książkach i Vision).
+    /\s*[\(（]\s*informacja\s+widoczna\s+na\s+okładce\s*[\)）]/gi,
+    /\s*[\(（]\s*informacja\s+widoczna\s+na\s+okladce\s*[\)）]/gi,
+    /\s*[\(（]\s*informacja\s+na\s+okładce\s*[\)）]/gi,
+    /\s*[\(（]\s*informacja\s+na\s+okladce\s*[\)）]/gi,
+    /\s*[\(（]\s*widoczne\s+na\s+okładce\s*[\)）]/gi,
+    /\s*[\(（]\s*widoczne\s+na\s+okladce\s*[\)）]/gi,
+    /\s*[\(（]\s*z\s+okładki\s*[\)）]/gi,
+    /\s*[\(（]\s*z\s+okladki\s*[\)）]/gi,
+    /\s*[\(（]\s*ze\s+zdjęcia\s*(?:produktu)?\s*[\)）]/gi,
+    /\s*[\(（]\s*z\s+zdjęcia\s*(?:produktu)?\s*[\)）]/gi,
+    /\s*[\(（]\s*z\s+etykiety\s*[\)）]/gi,
+    /\s*[\(（]\s*informacja\s+z\s+analizy\s+(?:obrazu|zdjęcia)\s*[\)）]/gi,
+    /\s*[\(（]\s*z\s+analizy\s+obrazu\s*[\)）]/gi,
+  ]
+  for (const re of patterns) {
+    next = next.replace(re, "")
+  }
+  next = next
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/>\s{2,}</g, ">\n<")
+    .trim()
+  return { cleaned: next, changed: next !== original }
+}
+
 function stripHtmlToPlainText(s: string): string {
   return s
     .replace(/<[^>]*>/g, " ")
@@ -117,6 +203,77 @@ function countWordsPlainFromHtml(html: string): number {
   const t = stripHtmlToPlainText(html)
   if (!t) return 0
   return t.split(/\s+/).filter(Boolean).length
+}
+
+/** Usuwa z HTML sekcję „Do formularza (atrybuty)” — treść tylko dla sprzedawcy, nie dla klienta. */
+function stripSellerFormAttributesSectionFromHtml(html: string): string {
+  if (!html || !/do\s+formularza/i.test(html)) return html
+  return html
+    .replace(
+      /<h[23][^>]*>[\s\S]*?Do\s+formularza[\s\S]*?<\/h[23]>[\s\S]*?(?=<h[12]\b|$)/gi,
+      ""
+    )
+    .replace(/>\s{2,}</g, ">\n<")
+    .trim()
+}
+
+/** Usuwa z opisu krótkiego zdanie-instrukcję o parametrach w panelu Allegro (częsty błąd modelu). */
+function stripAllegroSellerMetaFromShortDescription(text: string): string {
+  const t = text.trim()
+  if (!/\b(?:Uzupełnij|uzupełnij)\s+parametry\b/i.test(t)) return t
+  return t
+    .replace(
+      /^[^.!?]*\b(?:Uzupełnij|uzupełnij)\s+parametry[^.!?]*(?:formularzu\s+Allegro|Allegro|formularzu)[^.!?]*[.!?]\s*/i,
+      ""
+    )
+    .trim()
+}
+
+/**
+ * Usuwa z treści Allegro fragmenty, które zwykle nie powinny być w opisie dla kupującego:
+ * - dane kontaktowe / URL,
+ * - polityki zwrotów i reklamacji,
+ * - promocje czasowe / ceny kampanii,
+ * - identyfikatory magazynowe (EAN/SKU/Kod),
+ * - wzmianki o wadze brutto.
+ */
+function stripAllegroForbiddenBuyerContent(text: string): { cleaned: string; changed: boolean } {
+  if (!text.trim()) return { cleaned: text, changed: false }
+
+  let next = text
+
+  // Linijki "parametrowe" (często kopiowane do opisu przez błąd promptu/modelu).
+  next = next.replace(/(^|\n)\s*(?:EAN|SKU|Kod(?:\s+produktu|\s+wewnętrzny)?|Indeks)\s*[:#-][^\n]*/gi, "$1")
+
+  // Kontakt i linki (w opisie Allegro to ryzyko naruszenia zasad sekcji oferty).
+  next = next.replace(
+    /[^.!?\n]*\b(?:telefon|tel\.?|e-?mail|mail|kontakt(?:uj)?|zadzwoń|zadzwońcie|napisz|napiszcie|www\.|https?:\/\/)[^.!?\n]*[.!?]?/gi,
+    " "
+  )
+  next = next.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, " ")
+
+  // Zwroty / reklamacje / polityki posprzedażowe (powinny być w dedykowanych sekcjach Allegro).
+  next = next.replace(
+    /[^.!?\n]*\b(?:zwrot(?:y|u|em|om)?|reklamacj(?:a|e|i|ę)|odstąpieni[ea]|14\s*dni(?:\s+na\s+zwrot)?|30\s*dni(?:\s+na\s+zwrot)?|warunki\s+zwrot(?:u|ów)|warunki\s+reklamacj(?:i|e)|polityka\s+zwrot(?:u|ów))\b[^.!?\n]*[.!?]?/gi,
+    " "
+  )
+
+  // Promocje czasowe i ceny kampanijne osadzone w opisie.
+  next = next.replace(
+    /[^.!?\n]*\b(?:tylko\s+teraz|promocja(?:\s+do)?|okazja\s+dnia|do\s+niedzieli|rabat(?:\s+\d+%|\s+czasowy)?|za\s*\d+(?:[.,]\d+)?\s*zł)\b[^.!?\n]*[.!?]?/gi,
+    " "
+  )
+
+  // "Dane technicznie martwe" dla opisu sprzedażowego.
+  next = next.replace(/[^.!?\n]*\bwaga\s+brutto\b[^.!?\n]*[.!?]?/gi, " ")
+
+  next = next
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .trim()
+
+  return { cleaned: next, changed: next !== text.trim() }
 }
 
 /**
@@ -185,6 +342,15 @@ function stripLinks(s: string): string {
   return s.replace(/(?:https?:\/\/|www\.)\S+/gi, "").replace(/\s+/g, " ").trim()
 }
 
+/** Usuwa emoji (Unicode Extended_Pictographic) — gdy użytkownik wyłączył emoji w generatorze. */
+function stripUnicodeEmojiFromString(s: string): string {
+  if (!s) return s
+  return s
+    .replace(/\p{Extended_Pictographic}/gu, "")
+    .replace(/\uFE0F/g, "")
+    .replace(/\u200D/g, "")
+}
+
 /** Czy opis krótki zawiera rozpoznawalne wezwanie do działania (PL + typowe sklepy). */
 export function shortDescriptionHasCta(text: string): boolean {
   const t = text.toLowerCase()
@@ -237,17 +403,46 @@ export type SanitizedGeneratePayload = {
   qualityTips: QualityTip[]
 }
 
+export type AllegroSanitizeMode = "soft" | "hard"
+
 /**
  * Normalizuje odpowiedź modelu do limitów platformy (tytuł, opisy, tagi).
  * Dodaje ostrzeżenia do qualityTips przy przycięciu lub za krótkim opisie długim.
  */
 export function sanitizeGenerateResult(
   raw: Record<string, unknown>,
-  profile: PlatformProfile
+  profile: PlatformProfile,
+  options?: {
+    stripListingEmojis?: boolean
+    allegroSanitizeMode?: AllegroSanitizeMode
+    /** Gdy model zwróci samo CTA jako seoTitle — podstaw skróconą nazwę produktu. */
+    fallbackTitleFromProductName?: string
+  }
 ): SanitizedGeneratePayload {
   const extraTips: QualityTip[] = []
+  const allegroSanitizeMode: AllegroSanitizeMode =
+    options?.allegroSanitizeMode === "soft" ? "soft" : "hard"
 
-  let seoTitle = String(raw.seoTitle ?? "").trim()
+  let trustDisclaimerStripped = false
+  const applyTrustDisclaimers = (s: string): string => {
+    const { cleaned, changed } = stripSellerTrustWeakeningDisclaimers(s)
+    if (changed) trustDisclaimerStripped = true
+    return cleaned
+  }
+
+  // Strip internal-only _buyerIntent field (forces model to think about buyer before writing)
+  delete raw._buyerIntent
+
+  let seoTitle = applyTrustDisclaimers(String(raw.seoTitle ?? "").trim())
+  const fbTitle = options?.fallbackTitleFromProductName?.trim()
+  if (seoTitle && fbTitle && looksLikeCtaOnlySeoTitle(seoTitle)) {
+    seoTitle = truncateSmart(fbTitle, profile.titleMaxChars)
+    extraTips.push({
+      type: "warning",
+      text: "Tytuł oferty zastąpiono nazwą produktu — wyjście modelu to było samo wezwanie do działania (CTA), a nie tytuł SEO.",
+      points: 6,
+    })
+  }
   if (profile.slug === "ebay" && seoTitle) {
     const opt = optimizeEbayTitle(seoTitle)
     if (opt.changed && opt.title) {
@@ -281,6 +476,40 @@ export function sanitizeGenerateResult(
       })
     }
   }
+  if (profile.slug === "allegro" && seoTitle) {
+    const collapsed = seoTitle.replace(/!{2,}/g, "!")
+    if (collapsed !== seoTitle) {
+      seoTitle = collapsed
+      extraTips.push({
+        type: "warning",
+        text: "Allegro: zredukowano nadmiar wykrzykników w tytule — lepsza czytelność i mniejsze ryzyko odrzucenia.",
+        points: 3,
+      })
+    }
+    if (/(?:https?:\/\/|www\.)\S+/i.test(seoTitle)) {
+      seoTitle = seoTitle
+        .replace(/(?:https?:\/\/|www\.)\S+/gi, "")
+        .replace(/\s{2,}/g, " ")
+        .replace(/^\s+|\s+$/g, "")
+        .trim()
+      extraTips.push({
+        type: "warning",
+        text: "Allegro: usunięto adres URL z tytułu (linki w tytule są niedozwolone).",
+        points: 5,
+      })
+    }
+    const letterChars = seoTitle.replace(/[^A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż]/g, "")
+    if (letterChars.length >= 12) {
+      const upper = letterChars.replace(/[^A-ZĄĆĘŁŃÓŚŹŻ]/g, "").length
+      if (upper / letterChars.length >= 0.85) {
+        extraTips.push({
+          type: "warning",
+          text: "Allegro: tytuł wygląda na pisany CAPS LOCK — rozważ edycję na normalną pisownię (lepszy odbiór i zgodność z dobrymi praktykami).",
+          points: 4,
+        })
+      }
+    }
+  }
   if (seoTitle.length > profile.titleMaxChars) {
     const trimmed = emergencySmartTrimTitle(seoTitle, profile.titleMaxChars)
     if (trimmed.length <= profile.titleMaxChars) {
@@ -301,7 +530,9 @@ export function sanitizeGenerateResult(
   }
 
   const shortMax = effectiveCharMax(profile.charLimits.shortDesc, 250)
-  let shortDescription = String(raw.shortDescription ?? "").trim()
+  let shortDescription = applyTrustDisclaimers(
+    String(raw.shortDescription ?? "").trim()
+  )
   if (shortMax === 0) {
     if (shortDescription.length > 0) {
       extraTips.push({
@@ -311,14 +542,6 @@ export function sanitizeGenerateResult(
       })
     }
     shortDescription = ""
-  } else if (profile.slug === "shoper" && shortDescription && /<[^>]+>/.test(shortDescription)) {
-    const plain = stripHtmlToPlainText(shortDescription)
-    extraTips.push({
-      type: "warning",
-      text: `Shoper: w opisie skróconym usunięto tagi HTML — to pole powinno być plain text.`,
-      points: 3,
-    })
-    shortDescription = plain
   }
   if (profile.slug === "vinted" && /(?:https?:\/\/|www\.)\S+/i.test(shortDescription)) {
     shortDescription = stripLinks(shortDescription)
@@ -327,6 +550,23 @@ export function sanitizeGenerateResult(
       text: "Vinted: usunięto link z opisu krótkiego (linki zewnętrzne nie są zalecane).",
       points: 3,
     })
+  }
+  if (profile.slug === "allegro" && shortMax > 0 && shortDescription.length > 0) {
+    shortDescription = stripAllegroSellerMetaFromShortDescription(shortDescription)
+    const stripped = stripAllegroForbiddenBuyerContent(shortDescription)
+    if (stripped.changed) {
+      extraTips.push({
+        type: "warning",
+        text:
+          allegroSanitizeMode === "hard"
+            ? "Allegro: usunięto z opisu krótkiego treści niezalecane w sekcji produktu (kontakt/zwroty/promocje/ceny lub dane technicznie martwe)."
+            : "Allegro (tryb soft): wykryto w opisie krótkim treści niezalecane w sekcji produktu (kontakt/zwroty/promocje/ceny lub dane technicznie martwe) — popraw ręcznie.",
+        points: 6,
+      })
+      if (allegroSanitizeMode === "hard") {
+        shortDescription = stripped.cleaned
+      }
+    }
   }
   if (shortMax > 0 && shortDescription.length > shortMax) {
     extraTips.push({
@@ -337,7 +577,7 @@ export function sanitizeGenerateResult(
     shortDescription = truncateSmart(shortDescription, shortMax)
   }
 
-  let longDescription = String(raw.longDescription ?? "")
+  let longDescription = applyTrustDisclaimers(String(raw.longDescription ?? ""))
   if (profile.descriptionFormat === "plain_text" && /<[^>]+>/.test(longDescription)) {
     longDescription = stripHtmlToPlainText(longDescription)
     extraTips.push({
@@ -353,6 +593,23 @@ export function sanitizeGenerateResult(
       text: "Vinted: usunięto link z opisu długiego (platforma nie lubi linków zewnętrznych).",
       points: 4,
     })
+  }
+  if (profile.descriptionFormat === "html" && profile.slug === "allegro") {
+    longDescription = stripSellerFormAttributesSectionFromHtml(longDescription)
+    const stripped = stripAllegroForbiddenBuyerContent(longDescription)
+    if (stripped.changed) {
+      extraTips.push({
+        type: "warning",
+        text:
+          allegroSanitizeMode === "hard"
+            ? "Allegro: usunięto z opisu długiego treści niedozwolone lub niskowartościowe (kontakt, zwroty/reklamacje, promocje czasowe, EAN/SKU, waga brutto)."
+            : "Allegro (tryb soft): wykryto w opisie długim treści niedozwolone lub niskowartościowe (kontakt, zwroty/reklamacje, promocje czasowe, EAN/SKU, waga brutto) — popraw ręcznie.",
+        points: 8,
+      })
+      if (allegroSanitizeMode === "hard") {
+        longDescription = stripped.cleaned
+      }
+    }
   }
 
   if (profile.descriptionFormat === "html" && isDuplicateWordHalves(longDescription)) {
@@ -373,6 +630,18 @@ export function sanitizeGenerateResult(
     }
   }
 
+  if (profile.descriptionFormat === "html" && longDescription.trim()) {
+    const beforeHtmlRepair = longDescription
+    longDescription = repairListingHtmlDescription(longDescription)
+    if (longDescription !== beforeHtmlRepair) {
+      extraTips.push({
+        type: "success",
+        text: "Dopasowano brakujące zamknięcia tagów HTML (np. </strong> w listach), żeby opis nie był urwany w edytorze.",
+        points: 2,
+      })
+    }
+  }
+
   const minWords = profile.charLimits.longDescMinWords
   const wc = countWordsFromHtml(longDescription)
   if (longDescription.trim().length > 0 && wc < minWords) {
@@ -381,9 +650,7 @@ export function sanitizeGenerateResult(
         ? `Opis długi ma ok. ${wc} słów (cel redakcyjny min. ${minWords} — lepsza konwersja i Google; Allegro nie wymaga minimalnej liczby słów w opisie). Rozważ dopisanie.`
         : profile.slug === "amazon"
           ? `Opis długi ma ok. ${wc} słów (cel min. ${minWords} pod jakość i Google — Amazon nie wymaga technicznie 200 słów). Rozważ rozbudowę.`
-          : profile.slug === "shoper"
-            ? `Opis długi ma ok. ${wc} słów (min. ${minWords}; Shoper zaleca ok. 1000–1500 znaków treści z nagłówkami — nie powielaj opisu skróconego). Rozważ dopisanie.`
-            : `Opis długi ma ok. ${wc} słów (zalecane min. ${minWords} dla ${profile.name}). Rozważ regenerację lub dopisanie.`
+          : `Opis długi ma ok. ${wc} słów (zalecane min. ${minWords} dla ${profile.name}). Rozważ regenerację lub dopisanie.`
     extraTips.push({
       type: "warning",
       text: longHint,
@@ -402,7 +669,9 @@ export function sanitizeGenerateResult(
   }
 
   const metaMax = effectiveCharMax(profile.charLimits.metaDesc, 160)
-  let metaDescription = String(raw.metaDescription ?? "").trim()
+  let metaDescription = applyTrustDisclaimers(
+    String(raw.metaDescription ?? "").trim()
+  )
   if (metaMax === 0) {
     if (metaDescription.length > 0) {
       extraTips.push({
@@ -437,7 +706,7 @@ export function sanitizeGenerateResult(
   if (Array.isArray(raw.tags)) {
     tags = dedupePreserveOrder(
       raw.tags
-        .map((t) => String(t).trim())
+        .map((t) => applyTrustDisclaimers(String(t).trim()))
         .filter(Boolean)
     )
   }
@@ -497,6 +766,31 @@ export function sanitizeGenerateResult(
       text: "Vinted: dodano hashtagi na końcu opisu.",
       points: 2,
     })
+  }
+
+  if (trustDisclaimerStripped) {
+    extraTips.push({
+      type: "success",
+      text: "Usunięto dopiski osłabiające zaufanie (np. „informacja od sprzedawcy”) — parametry podawaj wprost, bez komentarzy o źródle informacji.",
+      points: 2,
+    })
+  }
+
+  if (options?.stripListingEmojis) {
+    const before = `${seoTitle}\n${shortDescription}\n${longDescription}\n${metaDescription}\n${tags.join("\n")}`
+    seoTitle = stripUnicodeEmojiFromString(seoTitle)
+    shortDescription = stripUnicodeEmojiFromString(shortDescription)
+    longDescription = stripUnicodeEmojiFromString(longDescription)
+    metaDescription = stripUnicodeEmojiFromString(metaDescription)
+    tags = tags.map((t) => stripUnicodeEmojiFromString(t).trim()).filter(Boolean)
+    const after = `${seoTitle}\n${shortDescription}\n${longDescription}\n${metaDescription}\n${tags.join("\n")}`
+    if (before !== after) {
+      extraTips.push({
+        type: "success",
+        text: 'Ustawienie „Emoji w listingu”: wyłączone — usunięto znaki emoji z treści, aby wynik był zgodny z preferencją.',
+        points: 1,
+      })
+    }
   }
 
   let qualityScore = Number(raw.qualityScore)

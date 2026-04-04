@@ -33,6 +33,20 @@ export interface PlatformProfile {
   uiKeyPoints?: string[]
   /** Punktowa treść w akordeonie zamiast długiego akapitu `seoNotes` (tylko UI; `seoNotes` zostaje pod prompty API). */
   uiAccordionBullets?: string[]
+  /**
+   * Opcjonalna tabela porównawcza (np. Allegro) — w akordeonie „Szczegóły platformy”.
+   */
+  uiOfferComparison?: {
+    caption?: string
+    rows: { element: string; aiDoes: string; why: string }[]
+  }
+  /**
+   * Polityka emoji — steruje zachowaniem toggleu w UI i blokami promptów.
+   * - "allowed"     — pełna swoboda; toggle działa normalnie.
+   * - "restricted"  — emoji dozwolone tylko w opisie (nie w tytule), np. Allegro, Amazon.
+   * - "discouraged" — platforma plain-text lub formalna; emoji możliwe technicznie ale rzadko stosowane.
+   */
+  emojiPolicy: "allowed" | "restricted" | "discouraged"
 }
 
 // ---------------------------------------------------------------------------
@@ -50,21 +64,25 @@ const allegro: PlatformProfile = {
   charLimits: { shortDesc: 250, longDescMinWords: 150, metaDesc: 160 },
   requiredSections: [
     "Dlaczego warto?",
-    "Co otrzymujesz?",
     "Specyfikacja techniczna",
   ],
   forbiddenPatterns: [
     "linki zewnętrzne (URL-e poza Allegro)",
-    "dane kontaktowe (telefon, e-mail)",
+    "adresy WWW i numery telefonów w tytule oferty",
+    "tytuł w całości WIELKIMI LITERAMI (CAPS LOCK) — obniża czytelność i ryzyko odrzucenia",
+    "nadmiar wykrzykników i haseł typu „PROMOCJA!!!”, „OKAZJA” bez realnej podstawy w danych",
+    "dane kontaktowe (telefon, e-mail) w opisie poza dozwolonym kontekstem",
     "odniesienia do innych platform sprzedaży",
-    "słowa: najtańszy, najlepszy (bez dowodu)",
+    "słowa: najtańszy, najlepszy (bez dowodu); unikaj też „oryginalny” przy markach nieweryfikowanych — ryzyko blokady",
   ],
   bestPractices: `- Tytuł oferty: max 75 znaków (limit od września 2023 r.; każdy znak się liczy). Główną frazę umieść jak najbliżej początku — to najważniejsze pole dla wyszukiwarki Allegro.
 - Parametry oferty (atrybuty): krytyczne dla filtrów. Jeśli np. kolor jest tylko w opisie HTML, a nie w parametrach, oferta może nie przejść filtrowania — opis NIE zastępuje parametrów.
 - Opis HTML: służy konwersji (przekonanie do zakupu) oraz SEO w Google. Przy domyślnym sortowaniu po Trafności treść opisu nie indeksuje oferty w Allegro tak jak tytuł i parametry — nie obiecuj kupującemu, że „słowa kluczowe w opisie” podniosą pozycję w wyszukiwarce Allegro.
 - Long-tail pod Allegro: umieszczaj frazy w 75-znakowym tytule i w odpowiednich parametrach — nie polegaj wyłącznie na powtarzaniu fraz w opisie pod „SEO Allegro”.
-- Opis: HTML (h2, ul, strong). Sekcje np.: „Dlaczego warto?", „Co otrzymujesz?", „Specyfikacja".
+- Opis: HTML z typowym zestawem edytora (nagłówki h2/h3, akapity p, listy ul/li, wyróżnienia strong). Unikaj zbędnego h1 i skomplikowanych layoutów — czytelność na mobile ma priorytet.
 - Unikaj keyword stuffing w tytule i opisie; naturalny język korzyści.
+- Nie powielaj w opisie tych samych liczb i jednostek (np. moc, prąd, wymiary) w wielu sekcjach „dla SEO” — filtry Allegro biorą się głównie z parametrów w formularzu; w opisie wystarczy jedna spójna wzmianka na fakt.
+- Nie wymuszaj osobnej sekcji „Co otrzymujesz?” przy pojedynczym produkcie — nagłówek typu zawartość zestawu ma sens tylko dla kompletu/zestawu z wieloma elementami w danych.
 - CTA w opisie OK („Dodaj do koszyka") — zgodnie z regulaminem oferty.`,
   exampleTitle: "Plecak Turystyczny 50L Wodoodporny | HikePro",
   seoNotes:
@@ -72,15 +90,42 @@ const allegro: PlatformProfile = {
   uiLimitsSummary:
     "Tytuł oferty: max 75 znaków (limit Allegro od września 2023). Limity „opis krótki” i „meta” w wyniku generatora to teksty pomocnicze (np. eksport, Google), a nie natywne pola SEO Allegro. Długi opis: zalecana objętość pod konwersję i SEO Google; Allegro nie wymaga minimalnej liczby słów w opisie, by wystawić ofertę.",
   uiKeyPoints: [
-    "Tytuł oferty: max 75 znaków — najważniejsze słowa na początku.",
-    "W wyszukiwarce Allegro liczą się tytuł i parametry (filtry), nie „SEO z opisu”.",
-    "„Opis krótki” / „meta” w wyniku to pomoc pod eksport / Google — nie jak meta w CMS.",
+    "Tytuł (≤75 zn.): najważniejsze słowa na początku. Unikaj CAPS LOCK, nadmiaru wykrzykników i haseł typu „PROMOCJA!!!” — to obniża jakość i czytelność oferty.",
+    "Parametry oferty to „sekretny składnik”: opis sprzedaje klientowi, ale parametry (atrybuty) decydują o filtrach bocznych i widoczności na liście — uzupełnij je w formularzu wystawiania.",
+    "Katalog Allegro i EAN/GTIN: prawidłowy kod łączy ofertę z produktem w katalogu i ułatwia warianty — wpisz go w panelu, gdy dotyczy.",
+    "Wyszukiwarka Allegro nie indeksuje opisu tak jak tytułu; tworzymy opis pod Google (SEO) i pod domknięcie sprzedaży (język korzyści). „Opis krótki” / „meta” w wyniku to eksport pod Google — nie pole meta w Allegro.",
   ],
   uiAccordionBullets: [
     "Tytuł + parametry w formularzu oferty — opis HTML ich nie zastępuje przy filtrach.",
-    "Opis HTML: konwersja i widoczność w Google; uzupełnij parametry przy wystawianiu.",
-    "Google dobiera snippet z tytułu i treści — osobnego pola meta jak w CMS nie ma.",
+    "Opis HTML: konwersja i widoczność w Google; parametry uzupełniasz osobno przy wystawianiu.",
+    "Google dobiera snippet z tytułu i treści — osobnego pola meta jak w CMS Allegro nie ma.",
   ],
+  uiOfferComparison: {
+    caption: "Co robi generator względem elementów oferty",
+    rows: [
+      {
+        element: "Tytuł",
+        aiDoes: "Trzyma limit 75 znaków, stawia słowa kluczowe na początku, unika CAPS/spamu.",
+        why: "Zbyt długie tytuły są obcinane; jakość tytułu wpływa na reklamy i CTR.",
+      },
+      {
+        element: "Opis HTML",
+        aiDoes: "Generuje czytelny HTML (sekcje, listy) pod mobile i konwersję.",
+        why: "Skanowalność na telefonie = wyższa konwersja.",
+      },
+      {
+        element: "Parametry",
+        aiDoes: "Wyciąga z cech/zdjęcia fakty do treści; Ty przenosisz wartości do pól atrybutów w panelu.",
+        why: "Filtry Allegro opierają się na parametrach — bez nich oferta ginie w liście.",
+      },
+      {
+        element: "SEO / meta",
+        aiDoes: "„Opis krótki” i meta w wyniku — pomoc pod Google i materiały zewnętrzne.",
+        why: "Silna domena Allegro + dobry snippet mogą wspierać widoczność poza platformą.",
+      },
+    ],
+  },
+  emojiPolicy: "restricted",
 }
 
 // ---------------------------------------------------------------------------
@@ -135,6 +180,7 @@ const amazon: PlatformProfile = {
     "Polskie znaki w backendzie = więcej bajtów; przekroczenie może wyzerować całe pole.",
     "A+: tekst na grafice ≠ indeks jak opis; Alt Text w modułach bywa indeksowany.",
   ],
+  emojiPolicy: "restricted",
 }
 
 // ---------------------------------------------------------------------------
@@ -183,56 +229,7 @@ const shopify: PlatformProfile = {
     "Treść strony indeksuje Google razem z meta; dopasuj słowa do intencji zakupu.",
     "Krótki URL (handle) ułatwia udostępnianie i czytelność w SERP.",
   ],
-}
-
-// ---------------------------------------------------------------------------
-// Shoper
-// ---------------------------------------------------------------------------
-
-const shoper: PlatformProfile = {
-  slug: "shoper",
-  name: "Shoper",
-  icon: "🏪",
-  locale: "pl",
-  /** W generatorze pole „seoTitle” = propozycja pod zakładkę Pozycjonowanie / widok w Google (~60–70 zn.), nie pełna nazwa produktu w panelu (do 255 zn.). */
-  titleMaxChars: 70,
-  titlePattern: "[Produkt] [Cecha kluczowa] — [Marka] [Wariant]",
-  descriptionFormat: "html",
-  charLimits: { shortDesc: 300, longDescMinWords: 150, metaDesc: 160 },
-  requiredSections: [
-    "Opis skrócony plain text (lista, Ceneo — bez HTML w tym polu)",
-    "Opis pełny (HTML z nagłówkami; treść uzupełnia skrót, nie duplikuje go 1:1)",
-    "Atrybuty produktu (EAN/GTIN, marka, rozmiar, kolor — feed Ceneo / Google Merchant)",
-  ],
-  forbiddenPatterns: [
-    "HTML / tagi w opisie skróconym (niektóre szablony się psują; Ceneo — tekst czysty)",
-    "kopiowanie tych samych zdań między opisem skróconym a pełnym (duplicate content w obrębie strony)",
-    "zbyt długi opis skrócony (Ceneo obcina po ~300 zn.)",
-    "brak atrybutów (gorsze filtrowanie, Ceneo i Google Shopping)",
-  ],
-  bestPractices: `- Nazwa produktu w panelu Shoper: do 255 znaków (baza). W Google widoczny jest krótszy tytuł — w zakładce Pozycjonowanie ustaw meta title ~60–70 zn. (to samo celuje pole „seoTitle” w generatorze).
-- Pole „seoTitle” w eksporcie: jak tytuł SEO do panelu — zwięzły, keyword na początku; nie musi być kopią pełnej nazwy 255 zn.
-- Opis skrócony: plain text (bez HTML) — 2–3 zdania; lista produktów, zestawy, domyślnie feed Ceneo. Jeśli skrót jest pusty, Ceneo często bierze fragment opisu pełnego — lepiej mieć sensowny skrót + atrybuty.
-- Opis pełny: HTML (h2, h3, ul, strong). Shoper zaleca ok. 1000–1500 znaków (ok. 150–250 słów) pod nagłówkami — uzupełnia skrót, inne akcenty; unikaj powielania tych samych zdań co w skrócie (Google: duplicate content).
-- Meta description: do 160 zn., mocne CTA (np. „Sprawdź”, „Darmowa dostawa”) — trafia do Google.
-- Atrybuty: materiał, rozmiar, kolor, producent; dla Google Shopping ważne są też EAN/GTIN i marka — mapowanie do Merchant Center.
-- Integracja Ceneo / Google Shopping: skrót + atrybuty w feedzie; kompletne dane = lepsza jakość feedu.
-- Polskie SEO: naturalna odmiana, nie angielskie kalki.`,
-  exampleTitle: "Plecak turystyczny 50L wodoodporny — HikePro Trail",
-  seoNotes:
-    "Shoper: w zakładce Pozycjonowanie ustawione meta title i meta description nadpisują domyślne (tytuł strony w Google). Nazwa produktu w sklepie może być dłuższa (do 255 zn.) niż to, co widać w SERP. Ceneo: domyślnie opis skrócony; gdy pusty — często używany fragment opisu długiego. Nie duplikuj 1:1 skrótu i opisu pełnego. Google Shopping: m.in. EAN/GTIN, marka, mapowanie atrybutów w Merchant Center.",
-  uiLimitsSummary:
-    "Nazwa w panelu Shoper do 255 zn.; pole „seoTitle” w wyniku = propozycja pod SEO (~60–70 zn. jak w Google). Opis krótki do 300 zn., plain text (bez HTML). Meta do 160 zn. Opis długi min. 150 słów (HTML); treść ma uzupełniać skrót, nie go powielać.",
-  uiKeyPoints: [
-    "„seoTitle” w wyniku ≈ meta title w panelu (~60–70 zn.); nazwa w sklepie może być dłuższa (255 zn.).",
-    "Opis skrócony: plain text, Ceneo / listy — bez HTML w tym polu.",
-    "Atrybuty (EAN, marka, rozmiar…) = feed Ceneo i Google Shopping.",
-  ],
-  uiAccordionBullets: [
-    "Pozycjonowanie w Shoperze nadpisuje domyślny tytuł strony w Google.",
-    "Nie kopiuj 1:1 skrótu do opisu pełnego — unikaj duplicate content na karcie produktu.",
-    "Pusty skrót → Ceneo często bierze fragment długiego; lepiej mieć sensowny skrót.",
-  ],
+  emojiPolicy: "allowed",
 }
 
 // ---------------------------------------------------------------------------
@@ -282,6 +279,7 @@ const woocommerce: PlatformProfile = {
     "Meta i treść wspierają snippet w Google; nagłówki porządkują treść.",
     "Schema produktu — kompletne dane (cena, dostępność) pomagają w wynikach.",
   ],
+  emojiPolicy: "allowed",
 }
 
 // ---------------------------------------------------------------------------
@@ -334,6 +332,7 @@ const ebay: PlatformProfile = {
     "Mobile: krótkie akapity i listy — większość zakupów na telefonie.",
     "Title Optimizer po stronie serwera zamienia duplikaty słów na synonimy (gdy możliwe).",
   ],
+  emojiPolicy: "allowed",
 }
 
 // ---------------------------------------------------------------------------
@@ -382,6 +381,7 @@ const etsy: PlatformProfile = {
     "Nie obiecuj parametrów lub terminów, których nie ma w danych wejściowych.",
     "Spójność tytułu, tagów i atrybutów poprawia trafność oferty i jakość wyszukiwania.",
   ],
+  emojiPolicy: "allowed",
 }
 
 // ---------------------------------------------------------------------------
@@ -430,6 +430,7 @@ const vinted: PlatformProfile = {
     "Tytuł i opis muszą zgadzać się ze zdjęciami oraz kategorią; bez linków zewnętrznych.",
     "Konkret wygrywa: mniej ozdobników, więcej faktów i wymiarów.",
   ],
+  emojiPolicy: "discouraged",
 }
 
 // ---------------------------------------------------------------------------
@@ -477,6 +478,7 @@ const empikplace: PlatformProfile = {
     "Unikaj obietnic bez danych (np. certyfikaty, gwarancje).",
     "Opis ma rozwijać korzyści i specyfikację, nie duplikować losowych fraz.",
   ],
+  emojiPolicy: "allowed",
 }
 
 // ---------------------------------------------------------------------------
@@ -522,6 +524,7 @@ const olx: PlatformProfile = {
     "Stan, cena i odbiór — jasno w treści.",
     "Generator traktuje długi opis jako tekst, nie HTML.",
   ],
+  emojiPolicy: "discouraged",
 }
 
 // ---------------------------------------------------------------------------
@@ -560,6 +563,7 @@ const ogolny: PlatformProfile = {
     "Sprawdź limity znaków u docelowego kanału przed publikacją.",
     "Cechy produktu poniżej mają największy wpływ na jakość tekstu.",
   ],
+  emojiPolicy: "allowed",
 }
 
 // ---------------------------------------------------------------------------
@@ -598,6 +602,7 @@ const ogolny_plain: PlatformProfile = {
     "Sprawdź limity znaków u docelowego kanału przed publikacją.",
     "Cechy produktu poniżej mają największy wpływ na jakość tekstu.",
   ],
+  emojiPolicy: "discouraged",
 }
 
 // ---------------------------------------------------------------------------
@@ -608,7 +613,6 @@ export const PLATFORM_PROFILES: Record<string, PlatformProfile> = {
   allegro,
   amazon,
   shopify,
-  shoper,
   woocommerce,
   ebay,
   etsy,
@@ -629,7 +633,6 @@ export const ACTIVE_PLATFORM_SLUGS = [
   "allegro",
   "amazon",
   "shopify",
-  "shoper",
   "woocommerce",
   "ebay",
   "etsy",

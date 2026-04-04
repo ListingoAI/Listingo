@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import {
+  APIConnectionError,
+  APIConnectionTimeoutError,
+  APIError,
+  AuthenticationError,
+  RateLimitError,
+} from 'openai'
 import { runGenerateListing } from '@/lib/generation/run-generate-listing'
+import { PRODUCT_IMAGE_VISION_UPGRADE_MESSAGE } from '@/lib/plans'
 
 export async function POST(req: NextRequest) {
   try {
@@ -68,6 +76,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: message }, { status: 400 })
     }
 
+    if (message === PRODUCT_IMAGE_VISION_UPGRADE_MESSAGE) {
+      return NextResponse.json(
+        { error: message, upgradeRequired: true },
+        { status: 403 }
+      )
+    }
+
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'AI zwróciło nieprawidłowy format. Spróbuj ponownie.' },
+        { status: 500 }
+      )
+    }
+
     if (message.includes('JSON')) {
       return NextResponse.json(
         { error: 'AI zwróciło nieprawidłowy format. Spróbuj ponownie.' },
@@ -81,6 +103,48 @@ export async function POST(req: NextRequest) {
       message.includes('Brak odpowiedzi z AI (pusty content)')
     ) {
       return NextResponse.json({ error: message }, { status: 500 })
+    }
+
+    if (message.includes('Nie udało się zapisać opisu')) {
+      return NextResponse.json({ error: message }, { status: 500 })
+    }
+
+    if (error instanceof AuthenticationError) {
+      return NextResponse.json(
+        {
+          error:
+            'Błąd uwierzytelnienia OpenAI — sprawdź klucz OPENAI_API_KEY w zmiennych środowiskowych.',
+        },
+        { status: 502 }
+      )
+    }
+
+    if (error instanceof RateLimitError) {
+      return NextResponse.json(
+        { error: 'Limit zapytań do OpenAI — odczekaj chwilę i spróbuj ponownie.' },
+        { status: 429 }
+      )
+    }
+
+    if (error instanceof APIConnectionError || error instanceof APIConnectionTimeoutError) {
+      return NextResponse.json(
+        { error: 'Brak połączenia z OpenAI. Sprawdź internet i spróbuj ponownie.' },
+        { status: 503 }
+      )
+    }
+
+    if (error instanceof APIError) {
+      if (error.status === 404) {
+        return NextResponse.json(
+          {
+            error:
+              'Model AI nie został znaleziony — sprawdź OPENAI_DESCRIPTION_MODEL i dostępność modelu na koncie OpenAI.',
+          },
+          { status: 502 }
+        )
+      }
+      const short = error.message.length > 280 ? `${error.message.slice(0, 277)}…` : error.message
+      return NextResponse.json({ error: `OpenAI: ${short}` }, { status: 502 })
     }
 
     return NextResponse.json(

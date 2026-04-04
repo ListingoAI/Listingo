@@ -1607,7 +1607,7 @@ export function HeroSection() {
               />
             </div>
             <p className="sr-only">
-              Logotypy partnerów: Allegro, Amazon, Shopify, Shoper, WooCommerce, eBay i inne.
+              Logotypy partnerów: Allegro, Amazon, Shopify, WooCommerce, eBay i inne.
             </p>
             <IntegrationLogosMarquee />
           </div>

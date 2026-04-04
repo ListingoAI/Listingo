@@ -1,9 +1,10 @@
 "use client"
 
-import { Copy, Loader2, Pencil, Sparkles, Star } from "lucide-react"
+import { Copy, Loader2, Pencil, Sparkles } from "lucide-react"
 import { useEffect, useState } from "react"
 import toast from "react-hot-toast"
 
+import PlatformPreview from "@/components/generator/PlatformPreview"
 import type { GenerateResponse } from "@/lib/types"
 import { cn, copyToClipboard } from "@/lib/utils"
 
@@ -14,7 +15,11 @@ type Props = {
   result: GenerateResponse | null
   error: string | null
   productName: string
+  /** Slug platformy z formularza — podgląd „jak na platformie”. */
+  platformSlug: string
 }
+
+type PanelView = "content" | "platform"
 
 export function LivePreviewPanel({
   loading,
@@ -23,11 +28,12 @@ export function LivePreviewPanel({
   result,
   error,
   productName,
+  platformSlug,
 }: Props) {
   const [editOpen, setEditOpen] = useState(false)
   const [draftLong, setDraftLong] = useState("")
-  const [rating, setRating] = useState(0)
   const [elapsedSec, setElapsedSec] = useState(0)
+  const [panelView, setPanelView] = useState<PanelView>("platform")
 
   useEffect(() => {
     if (!loading) {
@@ -41,11 +47,17 @@ export function LivePreviewPanel({
     return () => window.clearInterval(id)
   }, [loading])
 
+  useEffect(() => {
+    if (result) setPanelView("platform")
+  }, [result?.seoTitle, result?.longDescription])
+
+  const effectivePlatformSlug = result?.platformLimits?.slug ?? platformSlug
+
   const displayLong = editOpen ? draftLong : (result?.longDescription ?? "")
   const seoTitle = result?.seoTitle ?? ""
   const shortDescription = result?.shortDescription ?? ""
   const shortDescriptionLabel =
-    result?.platformLimits?.slug === "amazon" ? "Bullet Points" : "Opis krótki"
+    effectivePlatformSlug === "amazon" ? "Bullet Points" : "Opis krótki"
 
   const stepCount = Math.max(1, loadingMessages.length)
   const safeStep = Math.min(loadingStep, stepCount - 1)
@@ -223,54 +235,93 @@ export function LivePreviewPanel({
 
         {result && !loading ? (
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                Tytuł SEO
-              </p>
-              <h2 className="mt-1 text-base font-semibold leading-snug text-gray-100">
-                {seoTitle || productName}
-              </h2>
+            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Widok podglądu">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={panelView === "platform"}
+                onClick={() => setPanelView("platform")}
+                className={cn(
+                  "rounded-xl border px-3 py-2 text-[11px] font-semibold transition-colors sm:text-xs",
+                  panelView === "platform"
+                    ? "border-emerald-500/45 bg-emerald-500/15 text-emerald-100"
+                    : "border-white/10 bg-white/5 text-muted-foreground hover:border-white/20"
+                )}
+              >
+                Jak na platformie
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={panelView === "content"}
+                onClick={() => setPanelView("content")}
+                className={cn(
+                  "rounded-xl border px-3 py-2 text-[11px] font-semibold transition-colors sm:text-xs",
+                  panelView === "content"
+                    ? "border-emerald-500/45 bg-emerald-500/15 text-emerald-100"
+                    : "border-white/10 bg-white/5 text-muted-foreground hover:border-white/20"
+                )}
+              >
+                Treść (kopiowanie)
+              </button>
             </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                {shortDescriptionLabel}
-              </p>
-              <p className="mt-1 text-sm leading-relaxed text-gray-300">{shortDescription}</p>
-            </div>
-            <div className="min-h-0 flex-1">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                  Opis długi
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!editOpen) setDraftLong(result?.longDescription ?? "")
-                    setEditOpen((e) => !e)
-                  }}
-                  className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-emerald-500/30 hover:text-emerald-200"
-                >
-                  <Pencil className="h-3 w-3" />
-                  {editOpen ? "Podgląd" : "Edytuj"}
-                </button>
+
+            {panelView === "platform" ? (
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-white/8 bg-background/40 p-2 scrollbar-hub">
+                <PlatformPreview result={result} platform={effectivePlatformSlug} />
               </div>
-              {editOpen ? (
-                <textarea
-                  value={draftLong}
-                  onChange={(e) => setDraftLong(e.target.value)}
-                  className="max-h-64 min-h-40 w-full resize-y rounded-xl border border-white/10 bg-black/30 p-3 text-xs leading-relaxed text-gray-200 focus:border-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/12"
-                />
-              ) : displayLong.includes("<") && displayLong.includes(">") ? (
-                <div
-                  className="max-h-64 max-w-none overflow-y-auto rounded-xl border border-white/5 bg-black/20 p-3 text-xs leading-relaxed text-gray-300 scrollbar-hub [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-4"
-                  dangerouslySetInnerHTML={{ __html: displayLong }}
-                />
-              ) : (
-                <div className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl border border-white/5 bg-black/20 p-3 text-xs leading-relaxed text-gray-300 scrollbar-hub">
-                  {displayLong}
+            ) : (
+              <>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                    Tytuł SEO
+                  </p>
+                  <h2 className="mt-1 text-base font-semibold leading-snug text-gray-100">
+                    {seoTitle || productName}
+                  </h2>
                 </div>
-              )}
-            </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                    {shortDescriptionLabel}
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-gray-300">{shortDescription}</p>
+                </div>
+                <div className="min-h-0 flex-1">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                      Opis długi
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!editOpen) setDraftLong(result?.longDescription ?? "")
+                        setEditOpen((e) => !e)
+                      }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-emerald-500/30 hover:text-emerald-200"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      {editOpen ? "Podgląd" : "Edytuj"}
+                    </button>
+                  </div>
+                  {editOpen ? (
+                    <textarea
+                      value={draftLong}
+                      onChange={(e) => setDraftLong(e.target.value)}
+                      className="max-h-64 min-h-40 w-full resize-y rounded-xl border border-white/10 bg-black/30 p-3 text-xs leading-relaxed text-gray-200 focus:border-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/12"
+                    />
+                  ) : displayLong.includes("<") && displayLong.includes(">") ? (
+                    <div
+                      className="max-h-64 max-w-none overflow-y-auto rounded-xl border border-white/5 bg-black/20 p-3 text-xs leading-relaxed text-gray-300 scrollbar-hub [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-4"
+                      dangerouslySetInnerHTML={{ __html: displayLong }}
+                    />
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl border border-white/5 bg-black/20 p-3 text-xs leading-relaxed text-gray-300 scrollbar-hub">
+                      {displayLong}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
             <div className="flex flex-wrap items-center gap-3 border-t border-white/10 pt-4">
               <button
@@ -281,26 +332,6 @@ export function LivePreviewPanel({
                 <Copy className="h-3.5 w-3.5" />
                 Kopiuj pełny opis
               </button>
-              <div className="flex items-center gap-1" role="group" aria-label="Oceń opis">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setRating(n)}
-                    className="rounded p-0.5 transition-transform hover:scale-110 active:scale-95"
-                    aria-label={`${n} gwiazdek`}
-                  >
-                    <Star
-                      className={cn(
-                        "h-5 w-5",
-                        n <= rating
-                          ? "fill-amber-400 text-amber-400"
-                          : "text-gray-600"
-                      )}
-                    />
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
         ) : null}
